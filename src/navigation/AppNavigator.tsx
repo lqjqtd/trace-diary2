@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Layout.tabBar.marginHorizontal,
+    paddingHorizontal: Math.min(Layout.tabBar.marginHorizontal, Layout.window.width * 0.04),
   },
   tabBar: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
 import { DiaryEntry, DiaryAction, ExportData } from '../types';
 import {
   getAllEntries,
@@ -23,7 +23,7 @@ interface DiaryContextType {
   state: DiaryState;
   addEntry: (entry: DiaryEntry) => void;
   updateEntry: (entry: DiaryEntry) => void;
-  deleteEntry: (id: string) => void;
+  deleteEntry: (id: string) => Promise<void>;
   getEntryById: (id: string) => DiaryEntry | undefined;
   getEntriesByDateRange: (start: Date, end: Date) => DiaryEntry[];
   getTodayEntry: () => DiaryEntry | undefined;
@@ -112,14 +112,17 @@ export function DiaryProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 删除日记条目
+  const entriesRef = React.useRef(state.entries);
+  entriesRef.current = state.entries;
+
   const deleteEntry = useCallback(async (id: string) => {
-    const entry = state.entries.find(e => e.id === id);
+    const entry = entriesRef.current.find(e => e.id === id);
     if (entry?.images && entry.images.length > 0) {
       await deleteImages(entry.images);
     }
     deleteEntryFromStorage(id);
     dispatch({ type: 'DELETE_ENTRY', payload: id });
-  }, [state.entries]);
+  }, []);
 
   // 通过 ID 获取日记
   const getEntryById = useCallback(
@@ -180,7 +183,7 @@ export function DiaryProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_ENTRIES', payload: entries });
   }, []);
 
-  const value: DiaryContextType = {
+  const value: DiaryContextType = useMemo(() => ({
     state,
     addEntry,
     updateEntry,
@@ -192,7 +195,7 @@ export function DiaryProvider({ children }: { children: React.ReactNode }) {
     importEntries,
     exportEntries,
     refreshEntries,
-  };
+  }), [state, addEntry, updateEntry, deleteEntry, getEntryById, getEntriesByDateRange, getTodayEntry, getThisDayLastYearEntries, importEntries, exportEntries, refreshEntries]);
 
   return <DiaryContext.Provider value={value}>{children}</DiaryContext.Provider>;
 }

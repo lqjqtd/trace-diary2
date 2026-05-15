@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getAppLockEnabled, setAppLockEnabled, getPinHash, setPinHash, clearPin } from '../api/storage';
 import { hashPin, verifyPin } from '../utils/cryptoUtils';
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, isAuthenticated: value }));
   }, []);
 
-  const value: AuthContextType = {
+  const value = useMemo<AuthContextType>(() => ({
     state,
     authenticate,
     authenticateWithPin,
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     changePin,
     setAuthenticated,
     checkBiometricAvailability,
-  };
+  }), [state, authenticate, authenticateWithPin, enableAppLock, disableAppLock, changePin, setAuthenticated, checkBiometricAvailability]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

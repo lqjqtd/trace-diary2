@@ -12,28 +12,36 @@ const generateEncryptionKey = (): string => {
   return randomBytes.toString(CryptoJS.enc.Hex);
 };
 
+const FALLBACK_KEY_STORAGE_ID = 'mind-garden-key-fallback';
+const FALLBACK_KEY_FIELD = 'encryption_key';
+
 export const initializeStorage = async (): Promise<void> => {
   if (isInitialized) return;
 
   let encryptionKey: string | null = null;
-  
+
   try {
     encryptionKey = await SecureStore.getItemAsync(STORAGE_KEY_NAME);
-    
+
     if (!encryptionKey) {
       encryptionKey = generateEncryptionKey();
       await SecureStore.setItemAsync(STORAGE_KEY_NAME, encryptionKey);
     }
   } catch (error) {
-    console.warn('SecureStore error, using fallback key:', error);
-    encryptionKey = 'mind-garden-fallback-key';
+    console.warn('SecureStore unavailable, using device-local fallback key:', error);
+    const fallbackStore = new MMKV({ id: FALLBACK_KEY_STORAGE_ID });
+    encryptionKey = fallbackStore.getString(FALLBACK_KEY_FIELD) ?? null;
+    if (!encryptionKey) {
+      encryptionKey = generateEncryptionKey();
+      fallbackStore.set(FALLBACK_KEY_FIELD, encryptionKey);
+    }
   }
 
   storage = new MMKV({
     id: 'mind-garden-storage',
     encryptionKey,
   });
-  
+
   isInitialized = true;
 };
 
@@ -105,7 +113,7 @@ export const deleteEntry = (id: string): void => {
   saveAllEntries(filtered);
 };
 
-// 按日期获取日记
+// @deprecated Use getEntryById instead
 export const getEntriesByDate = (dateId: string): DiaryEntry | null => {
   return getEntryById(dateId);
 };
@@ -178,7 +186,11 @@ export const setImageCompression = (enabled: boolean): void => {
 
 // 新手引导
 export const getOnboardingDone = (): boolean => {
-  return getStorage().getBoolean(STORAGE_KEYS.ONBOARDING_DONE) ?? false;
+  try {
+    return getStorage().getBoolean(STORAGE_KEYS.ONBOARDING_DONE) ?? false;
+  } catch {
+    return false;
+  }
 };
 
 export const setOnboardingDone = (done: boolean): void => {

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Vibration } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Colors, Layout, Typography } from '../constants';
+import { useTheme } from '../context/ThemeProvider';
+import { Layout, Typography } from '../constants';
 
 interface PinInputProps {
   onComplete: (pin: string) => void;
@@ -24,6 +25,7 @@ export function PinInput({
 }: PinInputProps) {
   const [pin, setPin] = useState('');
   const [showError, setShowError] = useState(false);
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (error) {
@@ -62,8 +64,9 @@ export function PinInput({
               key={index}
               style={[
                 styles.dot,
-                pin.length > index && styles.dotFilled,
-                showError && styles.dotError,
+                { borderColor: colors.primary },
+                pin.length > index && { backgroundColor: colors.primary },
+                showError && { borderColor: colors.error, backgroundColor: colors.error },
               ]}
             />
           ))}
@@ -92,11 +95,12 @@ export function PinInput({
                 return (
                   <TouchableOpacity
                     key={keyIndex}
-                    style={styles.key}
+                    style={[styles.key, { backgroundColor: colors.cardBackground }]}
                     onPress={onBiometric}
                     activeOpacity={0.7}
+                    accessibilityLabel="使用生物识别解锁"
                   >
-                    <Feather name="smartphone" size={24} color={Colors.textPrimary} />
+                    <Feather name="smartphone" size={24} color={colors.textPrimary} />
                   </TouchableOpacity>
                 );
               }
@@ -105,11 +109,12 @@ export function PinInput({
                 return (
                   <TouchableOpacity
                     key={keyIndex}
-                    style={styles.key}
+                    style={[styles.key, { backgroundColor: colors.cardBackground }]}
                     onPress={handleDelete}
                     activeOpacity={0.7}
+                    accessibilityLabel="删除"
                   >
-                    <Feather name="delete" size={24} color={Colors.textPrimary} />
+                    <Feather name="delete" size={24} color={colors.textPrimary} />
                   </TouchableOpacity>
                 );
               }
@@ -117,11 +122,12 @@ export function PinInput({
               return (
                 <TouchableOpacity
                   key={keyIndex}
-                  style={styles.key}
+                  style={[styles.key, { backgroundColor: colors.cardBackground }]}
                   onPress={() => handlePress(key)}
                   activeOpacity={0.7}
+                  accessibilityLabel={`数字 ${key}`}
                 >
-                  <Text style={styles.keyText}>{key}</Text>
+                  <Text style={[styles.keyText, { color: colors.textPrimary }]}>{key}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -134,9 +140,9 @@ export function PinInput({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-        {error && showError && <Text style={styles.error}>{error}</Text>}
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+        {subtitle && <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
+        {error && showError && <Text style={[styles.error, { color: colors.error }]}>{error}</Text>}
       </View>
       {renderDots()}
       {renderKeypad()}
@@ -158,17 +164,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.fontSize['2xl'],
     fontWeight: Typography.fontWeight.semibold,
-    color: Colors.textPrimary,
     marginBottom: Layout.spacing.sm,
   },
   subtitle: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
     textAlign: 'center',
   },
   error: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.error,
     marginTop: Layout.spacing.sm,
   },
   dotsContainer: {
@@ -181,15 +184,7 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: Colors.primary,
     marginHorizontal: Layout.spacing.sm,
-  },
-  dotFilled: {
-    backgroundColor: Colors.primary,
-  },
-  dotError: {
-    borderColor: Colors.error,
-    backgroundColor: Colors.error,
   },
   keypad: {
     width: '100%',
@@ -204,10 +199,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: Colors.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.shadow,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -220,7 +214,6 @@ const styles = StyleSheet.create({
   keyText: {
     fontSize: Typography.fontSize['3xl'],
     fontWeight: Typography.fontWeight.medium,
-    color: Colors.textPrimary,
   },
 });
 

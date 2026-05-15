@@ -27,12 +27,15 @@ export function DiaryCard({ entry, onPress, onLongPress }: DiaryCardProps) {
   const moreCount = entryImages.length - 3;
 
   return (
-    <TouchableOpacity 
-      style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]} 
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={500}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${formatDateDisplay(entry.date)} 的日记${entry.mood ? `，心情 ${entry.mood}` : ''}，${entry.wordCount} 字`}
+      accessibilityHint="点击查看详情，长按显示更多操作"
     >
       <View style={styles.header}>
         <View style={styles.headerLeft}>

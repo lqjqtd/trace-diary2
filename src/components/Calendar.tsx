@@ -37,14 +37,15 @@ export function Calendar({ entries, onDateSelect, selectedDate }: CalendarProps)
     return map;
   }, [entries]);
 
-  const days = useMemo(() => {
+  const { days, emptyDays } = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
-    return eachDayOfInterval({ start, end });
+    const firstDayOfWeek = getDay(start);
+    return {
+      days: eachDayOfInterval({ start, end }),
+      emptyDays: Array(firstDayOfWeek).fill(null) as null[],
+    };
   }, [currentMonth]);
-
-  const firstDayOfWeek = getDay(startOfMonth(currentMonth));
-  const emptyDays = Array(firstDayOfWeek).fill(null);
 
   const goToPreviousMonth = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
@@ -59,6 +60,8 @@ export function Calendar({ entries, onDateSelect, selectedDate }: CalendarProps)
     onDateSelect(new Date());
   };
 
+  const today = useMemo(() => new Date(), []);
+
   const renderDay = (day: Date | null, index: number) => {
     if (!day) {
       return <View key={`empty-${index}`} style={styles.dayCell} />;
@@ -66,9 +69,9 @@ export function Calendar({ entries, onDateSelect, selectedDate }: CalendarProps)
 
     const dateId = formatDateId(day);
     const entry = entryMap.get(dateId);
-    const isToday = isSameDay(day, new Date());
+    const isToday = isSameDay(day, today);
     const isSelected = selectedDate && isSameDay(day, selectedDate);
-    const isFuture = isAfter(startOfDay(day), startOfDay(new Date()));
+    const isFuture = isAfter(startOfDay(day), startOfDay(today));
     const hasEntry = !!entry;
     const moodColor = entry?.mood ? Colors.moodColors[entry.mood] : undefined;
 

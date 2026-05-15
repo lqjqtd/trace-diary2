@@ -54,6 +54,7 @@ export const saveImage = async (
         from: manipulated.uri,
         to: destPath,
       });
+      deleteAsync(manipulated.uri, { idempotent: true }).catch(() => {});
     } else {
       await copyAsync({
         from: uri,

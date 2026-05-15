@@ -151,7 +151,7 @@ export function HomeScreen() {
         },
       ]
     );
-  }, [navigation, deleteEntry]);
+  }, [navigation, deleteEntry, showAlert]);
 
   const renderThisDaySection = () => {
     if (thisDayEntries.length === 0) return null;

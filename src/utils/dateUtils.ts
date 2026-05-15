@@ -100,5 +100,11 @@ export const countWords = (text: string): number => {
   return chineseChars.length + englishWords.length;
 };
 
+// 生成分段续写的时间分隔线
+export const formatTimeSeparator = (): string => {
+  const now = new Date();
+  return `\n\n---\n📝 ${format(now, 'HH:mm')}\n\n`;
+};
+
 // 获取星期标题数组
 export const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];

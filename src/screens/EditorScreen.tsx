@@ -1,9 +1,9 @@
 ﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  Text, 
-  TextInput, 
+import {
+  View,
+  StyleSheet,
+  Text,
+  TextInput,
   ScrollView,
   TouchableOpacity,
   Image,
@@ -11,6 +11,7 @@ import {
   Platform,
   StatusBar,
   Modal,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -24,7 +25,7 @@ import { useTheme } from '../context/ThemeProvider';
 import { useDebounce, useThemedAlert } from '../hooks';
 import { Layout, Typography } from '../constants';
 import { RootStackParamList, DiaryEntry, DiaryTemplate } from '../types';
-import { formatDateId, formatDateDisplay, formatTime, countWords } from '../utils/dateUtils';
+import { formatDateId, formatDateDisplay, formatTime, countWords, formatTimeSeparator } from '../utils/dateUtils';
 import { saveImage, deleteImages, getImageUri } from '../utils/imageStorage';
 import { getEntryImages } from '../utils/entryUtils';
 import { saveDraft, getDraft, clearDraft, getTagPresets } from '../api/storage';
@@ -99,6 +100,13 @@ export function EditorScreen() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [dialogAnswers, setDialogAnswers] = useState<string[]>([]);
   const [currentAnswer, setCurrentAnswer] = useState('');
+  const dialogAnswersRef = useRef<string[]>([]);
+  dialogAnswersRef.current = dialogAnswers;
+  const currentAnswerRef = useRef('');
+  currentAnswerRef.current = currentAnswer;
+  const currentQuestionIndexRef = useRef(0);
+  currentQuestionIndexRef.current = currentQuestionIndex;
+  const contentBeforeTemplateRef = useRef('');
 
   const [history, setHistory] = useState<HistoryState[]>([{ content: existingEntry?.content || '', images: getEntryImages(existingEntry) }]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -254,19 +262,22 @@ export function EditorScreen() {
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
+  const historyIndexRef = useRef(historyIndex);
+  historyIndexRef.current = historyIndex;
 
   const saveToHistory = useCallback((newContent: string, newImages: string[]) => {
     if (historyTimeoutRef.current) clearTimeout(historyTimeoutRef.current);
     historyTimeoutRef.current = setTimeout(() => {
+      const idx = historyIndexRef.current;
       setHistory((prev) => {
-        const newHistory = prev.slice(0, historyIndex + 1);
+        const newHistory = prev.slice(0, idx + 1);
         newHistory.push({ content: newContent, images: newImages });
         if (newHistory.length > 50) newHistory.shift();
         return newHistory;
       });
       setHistoryIndex((prev) => Math.min(prev + 1, 49));
     }, 500);
-  }, [historyIndex]);
+  }, []);
 
   const undo = useCallback(() => {
     if (canUndo) {
@@ -302,7 +313,7 @@ export function EditorScreen() {
     if (hasChanges && !draftOnlyMode) {
       const entry: DiaryEntry = {
         id: diaryId,
-        date: existingEntry?.date || new Date(initialDate).getTime(),
+        date: existingEntry?.date || new Date(initialDate + 'T00:00:00').getTime(),
         content,
         mood,
         weather,
@@ -334,11 +345,11 @@ export function EditorScreen() {
   const applyTemplate = (template: DiaryTemplate) => {
     setTemplateUsed(template.id);
     setShowTemplateModal(false);
-    
+
     if (template.id === 'free') {
-      setContent('');
       setDialogMode(false);
     } else if (template.questions.length > 0) {
+      contentBeforeTemplateRef.current = content;
       setCurrentTemplate(template);
       setCurrentQuestionIndex(0);
       setDialogAnswers([]);
@@ -347,58 +358,67 @@ export function EditorScreen() {
     }
     setHasChanges(true);
   };
-  
+
   const handleDialogNext = () => {
     if (!currentTemplate) return;
-    
-    const answers = [...dialogAnswers, currentAnswer];
+
+    const currentIdx = currentQuestionIndexRef.current;
+    const prevAnswers = dialogAnswersRef.current;
+    const answer = currentAnswerRef.current;
+    const answers = [...prevAnswers, answer];
     setDialogAnswers(answers);
-    
-    if (currentQuestionIndex < currentTemplate.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+
+    if (currentIdx < currentTemplate.questions.length - 1) {
+      setCurrentQuestionIndex(currentIdx + 1);
       setCurrentAnswer('');
     } else {
       const formattedContent = currentTemplate.questions
         .map((q, i) => answers[i]?.trim() ? q.format(answers[i]) : '')
         .filter(Boolean)
         .join('\n\n');
-      setContent(formattedContent);
+      const existing = contentBeforeTemplateRef.current;
+      setContent(existing ? existing + formatTimeSeparator() + formattedContent : formattedContent);
       setDialogMode(false);
       setCurrentTemplate(null);
       setHasChanges(true);
     }
   };
-  
+
   const handleDialogBack = () => {
-    if (currentQuestionIndex > 0) {
-      const prevAnswer = dialogAnswers[currentQuestionIndex - 1] || '';
+    const currentIdx = currentQuestionIndexRef.current;
+    const prevAnswers = dialogAnswersRef.current;
+    if (currentIdx > 0) {
+      const prevAnswer = prevAnswers[currentIdx - 1] || '';
       setCurrentAnswer(prevAnswer);
-      setDialogAnswers(dialogAnswers.slice(0, -1));
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      setDialogAnswers(prevAnswers.slice(0, -1));
+      setCurrentQuestionIndex(currentIdx - 1);
     }
   };
-  
+
   const handleDialogSkip = () => {
     if (!currentTemplate) return;
-    
-    const answers = [...dialogAnswers, ''];
+
+    const currentIdx = currentQuestionIndexRef.current;
+    const prevAnswers = dialogAnswersRef.current;
+    const answers = [...prevAnswers, ''];
     setDialogAnswers(answers);
-    
-    if (currentQuestionIndex < currentTemplate.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+
+    if (currentIdx < currentTemplate.questions.length - 1) {
+      setCurrentQuestionIndex(currentIdx + 1);
       setCurrentAnswer('');
     } else {
       const formattedContent = currentTemplate.questions
         .map((q, i) => answers[i]?.trim() ? q.format(answers[i]) : '')
         .filter(Boolean)
         .join('\n\n');
-      setContent(formattedContent);
+      const existing = contentBeforeTemplateRef.current;
+      setContent(existing ? existing + formatTimeSeparator() + formattedContent : formattedContent);
       setDialogMode(false);
       setCurrentTemplate(null);
       setHasChanges(true);
     }
   };
-  
+
   const exitDialogMode = () => {
     showAlert('退出引导', '确定要退出模板引导吗？已回答的内容将保留。', [
       { text: '取消', style: 'cancel' },
@@ -406,12 +426,13 @@ export function EditorScreen() {
         text: '退出',
         onPress: () => {
           if (currentTemplate) {
-            const allAnswers = [...dialogAnswers, currentAnswer];
+            const allAnswers = [...dialogAnswersRef.current, currentAnswerRef.current];
             const formattedContent = currentTemplate.questions
               .map((q, i) => allAnswers[i]?.trim() ? q.format(allAnswers[i]) : '')
               .filter(Boolean)
               .join('\n\n');
-            setContent(formattedContent);
+            const existing = contentBeforeTemplateRef.current;
+            setContent(existing ? existing + formatTimeSeparator() + formattedContent : formattedContent);
           }
           setDialogMode(false);
           setCurrentTemplate(null);
@@ -426,14 +447,24 @@ export function EditorScreen() {
       pendingTemplateRef.current = template;
       showAlert(
         '切换模板',
-        '切换模板会清除当前内容，确定要继续吗？',
+        '当前已有内容，如何处理？',
         [
           { text: '取消', style: 'cancel', onPress: () => { pendingTemplateRef.current = null; } },
-          { 
-            text: '确定', 
+          {
+            text: '续写',
+            onPress: () => {
+              if (pendingTemplateRef.current) {
+                applyTemplate(pendingTemplateRef.current);
+                pendingTemplateRef.current = null;
+              }
+            }
+          },
+          {
+            text: '覆盖',
             style: 'destructive',
             onPress: () => {
               if (pendingTemplateRef.current) {
+                setContent('');
                 applyTemplate(pendingTemplateRef.current);
                 pendingTemplateRef.current = null;
               }
@@ -615,7 +646,7 @@ export function EditorScreen() {
 
     const entry: DiaryEntry = {
       id: diaryId,
-      date: existingEntry?.date || new Date(initialDate).getTime(),
+      date: existingEntry?.date || new Date(initialDate + 'T00:00:00').getTime(),
       content,
       mood,
       weather,
@@ -709,33 +740,44 @@ export function EditorScreen() {
     navigation.goBack();
   };
 
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleCloseRef.current();
+      return true;
+    });
+    return () => backHandler.remove();
+  }, []);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity onPress={handleClose} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]}>
+        <TouchableOpacity onPress={handleClose} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]} accessibilityLabel="关闭编辑器">
           <Feather name="x" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerDate, { color: colors.textPrimary }]}>{formatDateDisplay(new Date(initialDate))}</Text>
+          <Text style={[styles.headerDate, { color: colors.textPrimary }]}>{formatDateDisplay(new Date(initialDate + 'T00:00:00'))}</Text>
           <Text style={[styles.wordCount, { color: colors.textMuted }]}>{countWords(content)} 字</Text>
           <Text style={[styles.headerTime, { color: colors.textMuted }]}>{formatTime(new Date())}</Text>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={undo} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]} disabled={!canUndo}>
+          <TouchableOpacity onPress={undo} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]} disabled={!canUndo} accessibilityLabel="撤销">
             <Feather name="rotate-ccw" size={20} color={canUndo ? colors.textPrimary : colors.textMuted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={redo} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]} disabled={!canRedo}>
+          <TouchableOpacity onPress={redo} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]} disabled={!canRedo} accessibilityLabel="重做">
             <Feather name="rotate-cw" size={20} color={canRedo ? colors.textPrimary : colors.textMuted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setWritingMode((prev) => !prev)} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]}>
+          <TouchableOpacity onPress={() => setWritingMode((prev) => !prev)} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]} accessibilityLabel={writingMode ? '退出专注模式' : '进入专注模式'}>
             <Feather name={writingMode ? 'minimize-2' : 'maximize-2'} size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowPreview(!showPreview)} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]}>
+          <TouchableOpacity onPress={() => setShowPreview(!showPreview)} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]} accessibilityLabel={showPreview ? '编辑模式' : '预览模式'}>
             <Feather name={showPreview ? 'edit-2' : 'eye'} size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleSave} style={[styles.headerButton, { backgroundColor: colors.primary + '14' }]}>
+          <TouchableOpacity onPress={handleSave} style={[styles.headerButton, { backgroundColor: colors.primary + '14' }]} accessibilityLabel="保存日记">
             <Feather name="check" size={24} color={colors.primary} />
           </TouchableOpacity>
         </View>
@@ -1092,7 +1134,7 @@ export function EditorScreen() {
           <Text style={[styles.sortHint, { color: colors.textMuted }]}>长按图片拖拽排序</Text>
           <DraggableFlatList
             data={images}
-            keyExtractor={(item, index) => `${item}-${index}`}
+            keyExtractor={(item) => item}
             onDragEnd={({ data }) => {
               setImages(data);
               setHasChanges(true);
@@ -1192,11 +1234,11 @@ const styles = StyleSheet.create({
   },
   removeImageButton: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    top: 0,
+    right: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
