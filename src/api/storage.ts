@@ -1,17 +1,12 @@
 import { MMKV } from 'react-native-mmkv';
 import * as SecureStore from 'expo-secure-store';
-import CryptoJS from 'crypto-js';
 import { DiaryEntry, AppSettings, ExportData } from '../types';
+import { generateMmkvEncryptionKey, isValidMmkvEncryptionKey } from './mmkvEncryption';
 import { LEGACY_FALLBACK_ENCRYPTION_KEY, resolveFallbackEncryptionKey } from './storageKeyResolver';
 
 const STORAGE_KEY_NAME = 'mind-garden-encryption-key';
 let storage: MMKV;
 let isInitialized = false;
-
-const generateEncryptionKey = (): string => {
-  const randomBytes = CryptoJS.lib.WordArray.random(32);
-  return randomBytes.toString(CryptoJS.enc.Hex);
-};
 
 const FALLBACK_KEY_STORAGE_ID = 'mind-garden-key-fallback';
 const FALLBACK_KEY_FIELD = 'encryption_key';
@@ -24,27 +19,30 @@ export const initializeStorage = async (): Promise<void> => {
   try {
     encryptionKey = await SecureStore.getItemAsync(STORAGE_KEY_NAME);
 
-    if (!encryptionKey) {
-      encryptionKey = generateEncryptionKey();
+    if (!isValidMmkvEncryptionKey(encryptionKey)) {
+      encryptionKey = generateMmkvEncryptionKey();
       await SecureStore.setItemAsync(STORAGE_KEY_NAME, encryptionKey);
     }
   } catch (error) {
     console.warn('SecureStore unavailable, using device-local fallback key:', error);
     const fallbackStore = new MMKV({ id: FALLBACK_KEY_STORAGE_ID });
+    const hasDataForKey = (key: string): boolean => {
+      try {
+        const candidateStore = new MMKV({
+          id: 'mind-garden-storage',
+          encryptionKey: key,
+        });
+        return candidateStore.getAllKeys().length > 0;
+      } catch {
+        return false;
+      }
+    };
+
     encryptionKey = resolveFallbackEncryptionKey({
       storedFallbackKey: fallbackStore.getString(FALLBACK_KEY_FIELD) ?? null,
-      hasLegacyFallbackData: () => {
-        try {
-          const legacyStore = new MMKV({
-            id: 'mind-garden-storage',
-            encryptionKey: LEGACY_FALLBACK_ENCRYPTION_KEY,
-          });
-          return legacyStore.getAllKeys().length > 0;
-        } catch {
-          return false;
-        }
-      },
-      generateKey: generateEncryptionKey,
+      hasStoredFallbackData: (key) => hasDataForKey(key),
+      hasLegacyFallbackData: () => hasDataForKey(LEGACY_FALLBACK_ENCRYPTION_KEY),
+      generateKey: generateMmkvEncryptionKey,
       persistFallbackKey: (key) => fallbackStore.set(FALLBACK_KEY_FIELD, key),
     });
   }
