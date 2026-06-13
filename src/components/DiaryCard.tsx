@@ -4,10 +4,11 @@ import { Feather } from '@expo/vector-icons';
 import { DiaryEntry } from '../types';
 import { Colors, Layout, Typography } from '../constants';
 import { useTheme } from '../context/ThemeProvider';
-import { formatDateDisplay, formatWeekday } from '../utils/dateUtils';
+import { formatDateDisplay, formatTime, formatWeekday } from '../utils/dateUtils';
 import { WEATHER_OPTIONS } from '../constants/Styles';
 import { getImageUri } from '../utils/imageStorage';
 import { getEntryImages, stripMarkdown } from '../utils/entryUtils';
+import { shouldDisplayEntryTime } from '../utils/diaryIdentity';
 
 interface DiaryCardProps {
   entry: DiaryEntry;
@@ -25,6 +26,7 @@ export function DiaryCard({ entry, onPress, onLongPress }: DiaryCardProps) {
   const entryImages = getEntryImages(entry);
   const displayImages = entryImages.slice(0, 3);
   const moreCount = entryImages.length - 3;
+  const entryTime = shouldDisplayEntryTime(entry) ? formatTime(entry.date) : null;
 
   return (
     <TouchableOpacity
@@ -34,7 +36,7 @@ export function DiaryCard({ entry, onPress, onLongPress }: DiaryCardProps) {
       delayLongPress={500}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${formatDateDisplay(entry.date)} 的日记${entry.mood ? `，心情 ${entry.mood}` : ''}，${entry.wordCount} 字`}
+      accessibilityLabel={`${formatDateDisplay(entry.date)}${entryTime ? ` ${entryTime}` : ''} 的日记${entry.mood ? `，心情 ${entry.mood}` : ''}，${entry.wordCount} 字`}
       accessibilityHint="点击查看详情，长按显示更多操作"
     >
       <View style={styles.header}>
@@ -46,7 +48,9 @@ export function DiaryCard({ entry, onPress, onLongPress }: DiaryCardProps) {
           )}
           <View style={styles.dateContainer}>
             <Text style={[styles.date, { color: colors.textPrimary }]}>{formatDateDisplay(entry.date)}</Text>
-            <Text style={[styles.weekday, { color: colors.textSecondary }]}>{formatWeekday(entry.date)}</Text>
+            <Text style={[styles.weekday, { color: colors.textSecondary }]}>
+              {entryTime ? `${formatWeekday(entry.date)} · ${entryTime}` : formatWeekday(entry.date)}
+            </Text>
           </View>
         </View>
         <View style={styles.headerRight}>

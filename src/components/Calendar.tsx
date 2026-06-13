@@ -18,6 +18,7 @@ import { DiaryEntry } from '../types';
 import { Colors, Layout, Typography } from '../constants';
 import { useTheme } from '../context/ThemeProvider';
 import { WEEKDAY_LABELS, formatDateId } from '../utils/dateUtils';
+import { getDiaryDateId } from '../utils/diaryIdentity';
 
 interface CalendarProps {
   entries: DiaryEntry[];
@@ -32,7 +33,11 @@ export function Calendar({ entries, onDateSelect, selectedDate }: CalendarProps)
   const entryMap = useMemo(() => {
     const map = new Map<string, DiaryEntry>();
     entries.forEach((entry) => {
-      map.set(entry.id, entry);
+      const dateId = getDiaryDateId(entry);
+      const existing = map.get(dateId);
+      if (!existing || entry.date > existing.date) {
+        map.set(dateId, entry);
+      }
     });
     return map;
   }, [entries]);

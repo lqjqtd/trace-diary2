@@ -16,28 +16,25 @@ import { useTheme } from '../context/ThemeProvider';
 import { Layout, Typography } from '../constants';
 import { RootStackParamList } from '../types';
 import { formatDateId, formatDateDisplay } from '../utils/dateUtils';
+import { getEntriesForDate } from '../utils/diaryIdentity';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export function CalendarScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { state, getEntryById } = useDiary();
+  const { state } = useDiary();
   const { colors, isDark } = useTheme();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  const selectedEntry = getEntryById(formatDateId(selectedDate));
+  const selectedEntries = getEntriesForDate(state.entries, selectedDate);
 
   const handleDateSelect = useCallback((date: Date) => {
     setSelectedDate(date);
   }, []);
 
   const handleCardPress = useCallback(() => {
-    if (selectedEntry) {
-      navigation.navigate('DiaryDetail', { entryId: selectedEntry.id });
-    } else {
-      navigation.navigate('Editor', { date: formatDateId(selectedDate) });
-    }
-  }, [navigation, selectedEntry, selectedDate]);
+    navigation.navigate('Editor', { date: formatDateId(selectedDate) });
+  }, [navigation, selectedDate]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -63,8 +60,23 @@ export function CalendarScreen() {
             {formatDateDisplay(selectedDate)}
           </Text>
           
-          {selectedEntry ? (
-            <DiaryCard entry={selectedEntry} onPress={handleCardPress} />
+          {selectedEntries.length > 0 ? (
+            <>
+              {selectedEntries.map((entry) => (
+                <DiaryCard
+                  key={entry.id}
+                  entry={entry}
+                  onPress={() => navigation.navigate('DiaryDetail', { entryId: entry.id })}
+                />
+              ))}
+              <TouchableOpacity
+                style={[styles.addAnotherCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+                onPress={handleCardPress}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.addAnotherText, { color: colors.primary }]}>再写一篇</Text>
+              </TouchableOpacity>
+            </>
           ) : (
             <TouchableOpacity 
               style={[styles.noEntryCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]} 
@@ -122,6 +134,19 @@ const styles = StyleSheet.create({
   },
   noEntryHint: {
     fontSize: Typography.fontSize.sm,
+  },
+  addAnotherCard: {
+    marginHorizontal: Layout.spacing.md,
+    marginTop: Layout.spacing.xs,
+    paddingVertical: Layout.spacing.md,
+    borderRadius: Layout.borderRadius.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  addAnotherText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
   },
 });
 

@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { DiaryEntry, AppSettings, ExportData } from '../types';
 import { generateMmkvEncryptionKey } from './mmkvEncryption';
 import { LEGACY_FALLBACK_ENCRYPTION_KEY, resolveFallbackEncryptionKey } from './storageKeyResolver';
+import { resolveImageCompressionEnabled } from '../utils/imageCompressionPolicy';
 
 const STORAGE_KEY_NAME = 'mind-garden-encryption-key';
 let storage: MMKV;
@@ -186,7 +187,7 @@ export const setThemeId = (themeId: string): void => {
 
 // 获取图片压缩设置
 export const getImageCompression = (): boolean => {
-  return getStorage().getBoolean(STORAGE_KEYS.IMAGE_COMPRESSION) ?? true;
+  return resolveImageCompressionEnabled(getStorage().getBoolean(STORAGE_KEYS.IMAGE_COMPRESSION));
 };
 
 // 设置图片压缩

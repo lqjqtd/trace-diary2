@@ -1,7 +1,9 @@
 // 日记条目数据结构
 export interface DiaryEntry {
-  id: string; // 日期字符串 'YYYY-MM-DD'
-  date: number; // 时间戳
+  id: string; // 唯一 ID；旧数据可能是 'YYYY-MM-DD'，新数据包含分钟级时间
+  date: number; // 日记日期和写作时间戳
+  createdAt?: number; // 首次写下的时间戳，精确到分钟
+  updatedAt?: number; // 最后编辑时间戳
   content: string; // Markdown 格式的日记内容
   mood?: string; // Emoji 字符, e.g., '😊'
   weather?: string; // 天气标识, e.g., 'sunny'

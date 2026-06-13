@@ -13,6 +13,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { getImageCompression } from '../api/storage';
 
 const IMAGE_DIR = 'diary-images';
+const COMPRESSED_IMAGE_WIDTH = 1600;
+const COMPRESSED_IMAGE_QUALITY = 0.85;
 const getImageDir = () => `${documentDirectory}${IMAGE_DIR}/`;
 
 export const ensureImageDir = async (): Promise<void> => {
@@ -47,8 +49,8 @@ export const saveImage = async (
     if (shouldCompress) {
       const manipulated = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 1080 } }],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        [{ resize: { width: COMPRESSED_IMAGE_WIDTH } }],
+        { compress: COMPRESSED_IMAGE_QUALITY, format: ImageManipulator.SaveFormat.JPEG }
       );
       await copyAsync({
         from: manipulated.uri,

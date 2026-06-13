@@ -1,5 +1,6 @@
 import { DiaryEntry } from '../types';
 import { formatDateId } from './dateUtils';
+import { getDiaryDateId } from './diaryIdentity';
 
 export interface WritingStats {
   totalEntries: number;
@@ -15,7 +16,7 @@ export const calculateStreak = (entries: DiaryEntry[]): { current: number; longe
   if (entries.length === 0) return { current: 0, longest: 0 };
 
   const sortedEntries = [...entries].sort((a, b) => b.date - a.date);
-  const dateSet = new Set(sortedEntries.map((e) => e.id));
+  const dateSet = new Set(sortedEntries.map(getDiaryDateId));
 
   let currentStreak = 0;
   let longestStreak = 0;
@@ -91,7 +92,12 @@ export const getHeatmapData = (
   entries.forEach((entry) => {
     const d = new Date(entry.date);
     if (d.getFullYear() === year) {
-      map.set(entry.id, { count: 1, wordCount: entry.wordCount });
+      const dateId = getDiaryDateId(entry);
+      const existing = map.get(dateId);
+      map.set(dateId, {
+        count: (existing?.count ?? 0) + 1,
+        wordCount: (existing?.wordCount ?? 0) + entry.wordCount,
+      });
     }
   });
 

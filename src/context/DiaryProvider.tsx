@@ -9,7 +9,7 @@ import {
   importDataMerge,
   exportAllData,
 } from '../api/storage';
-import { formatDateId } from '../utils/dateUtils';
+import { getEntriesForDate } from '../utils/diaryIdentity';
 import { deleteImages } from '../utils/imageStorage';
 
 // 日记状态接口
@@ -145,8 +145,7 @@ export function DiaryProvider({ children }: { children: React.ReactNode }) {
 
   // 获取今天的日记
   const getTodayEntry = useCallback(() => {
-    const todayId = formatDateId(new Date());
-    return state.entries.find((entry) => entry.id === todayId);
+    return getEntriesForDate(state.entries, new Date())[0];
   }, [state.entries]);
 
   // 获取"那年今日"的日记

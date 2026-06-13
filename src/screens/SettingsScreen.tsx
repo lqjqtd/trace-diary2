@@ -617,7 +617,7 @@ export function SettingsScreen() {
           <SettingsItem
             icon="image"
             title="图片压缩"
-            subtitle={imageCompressionEnabled ? '压缩至1080px宽度，节省存储空间' : '保存原图，占用更多空间'}
+            subtitle={imageCompressionEnabled ? '压缩至1600px宽度，节省存储空间' : '保存原图，画质更清晰'}
             hasSwitch
             switchValue={imageCompressionEnabled}
             onSwitchChange={(value) => {

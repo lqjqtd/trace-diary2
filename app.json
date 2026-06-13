@@ -2,7 +2,7 @@
   "expo": {
     "name": "素履",
     "slug": "trace-diary",
-    "version": "1.2.3",
+    "version": "1.2.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,10 +20,10 @@
         "NSFaceIDUsageDescription": "使用 Face ID 解锁素履",
         "NSPhotoLibraryUsageDescription": "允许素履访问相册以添加图片到日记"
       },
-      "buildNumber": "10203"
+      "buildNumber": "10204"
     },
     "android": {
-      "versionCode": 10203,
+      "versionCode": 10204,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F4F4F8"

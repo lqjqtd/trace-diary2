@@ -24,29 +24,33 @@ import { useDiary } from '../context';
 import { useTheme } from '../context/ThemeProvider';
 import { Colors, Layout, Typography, WEATHER_OPTIONS } from '../constants';
 import { RootStackParamList } from '../types';
-import { formatDateDisplay, formatWeekday } from '../utils/dateUtils';
+import { formatDateDisplay, formatTime, formatWeekday } from '../utils/dateUtils';
 import { getImageUri } from '../utils/imageStorage';
 import { getEntryImages } from '../utils/entryUtils';
+import { shouldDisplayEntryTime } from '../utils/diaryIdentity';
 import { MarkdownPreview, ThemedAlert } from '../components';
 import { useThemedAlert } from '../hooks';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const ZoomableImage = ({ uri }: { uri: string }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const baseScale = useRef(1);
+  const baseScale = useRef(new Animated.Value(1)).current;
+  const pinchScale = useRef(new Animated.Value(1)).current;
+  const lastBaseScale = useRef(1);
   const lastState = useRef<number>(State.UNDETERMINED);
+  const scale = Animated.multiply(baseScale, pinchScale);
 
   const onPinchEvent = Animated.event<PinchGestureHandlerGestureEvent>(
-    [{ nativeEvent: { scale } }],
+    [{ nativeEvent: { scale: pinchScale } }],
     { useNativeDriver: true }
   );
 
   const onPinchStateChange = (event: PinchGestureHandlerGestureEvent) => {
     if (lastState.current === State.ACTIVE && event.nativeEvent.state !== State.ACTIVE) {
-      const newScale = baseScale.current * event.nativeEvent.scale;
-      baseScale.current = Math.min(Math.max(newScale, 1), 4);
-      scale.setValue(baseScale.current);
+      const nextScale = Math.min(Math.max(lastBaseScale.current * event.nativeEvent.scale, 1), 4);
+      lastBaseScale.current = nextScale;
+      baseScale.setValue(nextScale);
+      pinchScale.setValue(1);
     }
     lastState.current = event.nativeEvent.state;
   };
@@ -60,6 +64,7 @@ const ZoomableImage = ({ uri }: { uri: string }) => {
         source={{ uri }}
         style={[styles.fullImage, { transform: [{ scale }] }]}
         resizeMode="contain"
+        resizeMethod="scale"
       />
     </PinchGestureHandler>
   );
@@ -113,6 +118,7 @@ export function DiaryDetailScreen() {
   };
   const weatherOption = WEATHER_OPTIONS.find((w) => w.id === entry?.weather);
   const entryImages = entry ? getEntryImages(entry) : [];
+  const entryTime = entry && shouldDisplayEntryTime(entry) ? formatTime(entry.date) : null;
 
   const openImageViewer = (index: number) => {
     setSelectedImageIndex(index);
@@ -187,7 +193,9 @@ export function DiaryDetailScreen() {
                 {entry.mood && <Text style={styles.mood}>{entry.mood}</Text>}
                 <View style={styles.dateInfo}>
                   <Text style={[styles.date, { color: colors.textPrimary }]}>{formatDateDisplay(entry.date)}</Text>
-                  <Text style={[styles.weekday, { color: colors.textSecondary }]}>{formatWeekday(entry.date)}</Text>
+                  <Text style={[styles.weekday, { color: colors.textSecondary }]}>
+                    {entryTime ? `${formatWeekday(entry.date)} · ${entryTime}` : formatWeekday(entry.date)}
+                  </Text>
                 </View>
               </View>
               <View style={styles.metaRow}>
@@ -255,7 +263,9 @@ export function DiaryDetailScreen() {
             {entry.mood && <Text style={styles.mood}>{entry.mood}</Text>}
             <View style={styles.dateInfo}>
               <Text style={[styles.date, { color: colors.textPrimary }]}>{formatDateDisplay(entry.date)}</Text>
-              <Text style={[styles.weekday, { color: colors.textSecondary }]}>{formatWeekday(entry.date)}</Text>
+              <Text style={[styles.weekday, { color: colors.textSecondary }]}>
+                {entryTime ? `${formatWeekday(entry.date)} · ${entryTime}` : formatWeekday(entry.date)}
+              </Text>
             </View>
           </View>
 
@@ -501,12 +511,13 @@ const styles = StyleSheet.create({
   },
   imageViewerPage: {
     width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
   },
   fullImage: {
     width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
   },
   imageCounter: {
     position: 'absolute',

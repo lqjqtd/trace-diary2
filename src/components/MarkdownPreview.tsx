@@ -148,12 +148,13 @@ export function MarkdownPreview({ content, images }: MarkdownPreviewProps) {
       {images && images.length > 0 && (
         <View style={styles.imagesContainer}>
           {images.map((img, index) => (
-            <Image
-              key={index}
-              source={{ uri: getImageUri(img) }}
-              style={styles.image}
-              resizeMode="cover"
-            />
+            <View key={index} style={[styles.imageFrame, { backgroundColor: colors.inputBackground }]}>
+              <Image
+                source={{ uri: getImageUri(img) }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+            </View>
           ))}
         </View>
       )}
@@ -212,8 +213,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   hr: { height: 1, marginVertical: Layout.spacing.md },
-  imagesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: Layout.spacing.xs, marginTop: Layout.spacing.md },
-  image: { width: 100, height: 100, borderRadius: Layout.borderRadius.sm },
+  imagesContainer: { gap: Layout.spacing.sm, marginTop: Layout.spacing.md },
+  imageFrame: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: Layout.borderRadius.md,
+    overflow: 'hidden',
+  },
+  image: { width: '100%', height: '100%' },
 });
 
 export default MarkdownPreview;

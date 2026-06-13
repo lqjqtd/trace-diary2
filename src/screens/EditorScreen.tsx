@@ -26,6 +26,11 @@ import { useDebounce, useThemedAlert } from '../hooks';
 import { Layout, Typography } from '../constants';
 import { RootStackParamList, DiaryEntry, DiaryTemplate } from '../types';
 import { formatDateId, formatDateDisplay, formatTime, countWords, formatTimeSeparator } from '../utils/dateUtils';
+import {
+  createDiaryEntryId,
+  createDiaryTimestampForDate,
+  shouldDisplayEntryTime,
+} from '../utils/diaryIdentity';
 import { saveImage, deleteImages, getImageUri } from '../utils/imageStorage';
 import { getEntryImages } from '../utils/entryUtils';
 import { saveDraft, getDraft, clearDraft, getTagPresets } from '../api/storage';
@@ -65,15 +70,20 @@ export function EditorScreen() {
   const dateParam = route.params?.date;
   const initialDate = dateParam || formatDateId(new Date());
   const [draftOnlyMode, setDraftOnlyMode] = useState(route.params?.draftOnly ?? false);
+  const existingIds = useMemo(() => new Set(state.entries.map((entry) => entry.id)), [state.entries]);
+  const newEntryDateRef = useRef(createDiaryTimestampForDate(initialDate));
+  const newEntryIdRef = useRef<string | null>(null);
+  if (!newEntryIdRef.current) {
+    newEntryIdRef.current = createDiaryEntryId(newEntryDateRef.current, existingIds);
+  }
   
   const existingEntryById = entryId ? getEntryById(entryId) : null;
-  const existingEntryByDate = !entryId ? getEntryById(initialDate) : null;
-  const existingEntry = entryId
-    ? existingEntryById
-    : (draftOnlyMode ? null : existingEntryByDate);
+  const existingEntry = entryId ? existingEntryById : null;
   
   const isEditing = !!existingEntry && !draftOnlyMode;
-  const diaryId = entryId || initialDate;
+  const diaryId = entryId || newEntryIdRef.current;
+  const entryDate = existingEntry?.date ?? newEntryDateRef.current;
+  const entryCreatedAt = existingEntry?.createdAt ?? (isEditing ? undefined : entryDate);
 
   const [content, setContent] = useState(existingEntry?.content || '');
   const [mood, setMood] = useState<string | undefined>(existingEntry?.mood);
@@ -142,7 +152,11 @@ export function EditorScreen() {
     if (draftChecked) return;
     
     const draft = getDraft();
-    if (!draft || draft.diaryId !== diaryId) {
+    const isSameDraft = draft?.diaryId === diaryId;
+    const isSameDateNewEntryDraft = !entryId && (
+      draft?.diaryId === initialDate || draft?.diaryId.startsWith(`${initialDate}-`)
+    );
+    if (!draft || (!isSameDraft && !isSameDateNewEntryDraft)) {
       setDraftChecked(true);
       return;
     }
@@ -313,7 +327,9 @@ export function EditorScreen() {
     if (hasChanges && !draftOnlyMode) {
       const entry: DiaryEntry = {
         id: diaryId,
-        date: existingEntry?.date || new Date(initialDate + 'T00:00:00').getTime(),
+        date: entryDate,
+        createdAt: entryCreatedAt,
+        updatedAt: Date.now(),
         content,
         mood,
         weather,
@@ -324,7 +340,7 @@ export function EditorScreen() {
       };
       debouncedSave(entry);
     }
-  }, [content, mood, weather, images, tags, hasChanges, templateUsed, diaryId, existingEntry?.date, initialDate, debouncedSave, draftOnlyMode]);
+  }, [content, mood, weather, images, tags, hasChanges, templateUsed, diaryId, entryDate, entryCreatedAt, debouncedSave, draftOnlyMode]);
 
   const handleContentChange = (text: string) => {
     setContent(text);
@@ -646,7 +662,9 @@ export function EditorScreen() {
 
     const entry: DiaryEntry = {
       id: diaryId,
-      date: existingEntry?.date || new Date(initialDate + 'T00:00:00').getTime(),
+      date: entryDate,
+      createdAt: entryCreatedAt,
+      updatedAt: Date.now(),
       content,
       mood,
       weather,
@@ -762,7 +780,9 @@ export function EditorScreen() {
         <View style={styles.headerCenter}>
           <Text style={[styles.headerDate, { color: colors.textPrimary }]}>{formatDateDisplay(new Date(initialDate + 'T00:00:00'))}</Text>
           <Text style={[styles.wordCount, { color: colors.textMuted }]}>{countWords(content)} 字</Text>
-          <Text style={[styles.headerTime, { color: colors.textMuted }]}>{formatTime(new Date())}</Text>
+          {shouldDisplayEntryTime({ date: entryDate, createdAt: entryCreatedAt }) && (
+            <Text style={[styles.headerTime, { color: colors.textMuted }]}>{formatTime(entryDate)}</Text>
+          )}
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={undo} style={[styles.headerButton, { backgroundColor: colors.inputBackground }]} disabled={!canUndo} accessibilityLabel="撤销">
