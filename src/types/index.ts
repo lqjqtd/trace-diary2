@@ -1,3 +1,10 @@
+// 位置信息
+export interface LocationInfo {
+  name: string;        // 地点名称（如"北京市朝阳区望京街道"）
+  latitude: number;   // 纬度
+  longitude: number;  // 经度
+}
+
 // 日记条目数据结构
 export interface DiaryEntry {
   id: string; // 唯一 ID；旧数据可能是 'YYYY-MM-DD'，新数据包含分钟级时间
@@ -11,6 +18,7 @@ export interface DiaryEntry {
   wordCount: number;
   images?: string[]; // 图片文件名数组 (存储在 documentDirectory/diary-images/)
   tags?: string[]; // 标签数组
+  location?: LocationInfo; // 位置信息
   imageBase64?: string | null; // @deprecated 兼容旧数据
 }
 

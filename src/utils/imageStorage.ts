@@ -17,6 +17,8 @@ const COMPRESSED_IMAGE_WIDTH = 1600;
 const COMPRESSED_IMAGE_QUALITY = 0.85;
 const getImageDir = () => `${documentDirectory}${IMAGE_DIR}/`;
 
+export { getImageDir };
+
 export const ensureImageDir = async (): Promise<void> => {
   const dir = getImageDir();
   const dirInfo = await getInfoAsync(dir);

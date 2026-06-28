@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { RootStackParamList } from '../types'; // 确保引入了你的路由类型
 import { 
   View, 
   StyleSheet, 
@@ -611,7 +612,25 @@ export function SettingsScreen() {
             onSwitchChange={handleAppLockToggle}
           />
         </View>
-
+		
+      {/* 新增：数据同步板块 */}
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>数据同步</Text>
+      <View style={[styles.section, { backgroundColor: colors.cardBackground }]}>
+        <TouchableOpacity
+          style={styles.settingsItem}
+          onPress={() => navigation.navigate('WebdavSettings')}
+        >
+          <View style={styles.settingsItemLeft}>
+            <Feather name="cloud" size={20} color={colors.primary} />
+            <View style={styles.settingsItemTextContainer}>
+              <Text style={[styles.settingsItemTitle, { color: colors.textPrimary }]}>WebDAV 同步</Text>
+              <Text style={[styles.settingsItemSubtitle, { color: colors.textSecondary }]}>配置云同步服务器</Text>
+            </View>
+          </View>
+          <Feather name="chevron-right" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+	  
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>图片</Text>
         <View style={[styles.section, { backgroundColor: colors.cardBackground }]}>
           <SettingsItem

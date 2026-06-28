@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo, useRef } from 'react';
 import { DiaryEntry, DiaryAction, ExportData } from '../types';
 import {
   getAllEntries,
@@ -8,9 +8,18 @@ import {
   importDataOverwrite,
   importDataMerge,
   exportAllData,
+  getAutoSyncEnabled,
+  setLastSyncTime,
 } from '../api/storage';
 import { getEntriesForDate } from '../utils/diaryIdentity';
 import { deleteImages } from '../utils/imageStorage';
+import webdavService from '../api/webdavService';
+import * as SecureStore from 'expo-secure-store';
+import { getImageDir } from '../utils/imageStorage';
+
+const WEBDAV_URL_KEY = 'webdav_url';
+const WEBDAV_USER_KEY = 'webdav_user';
+const WEBDAV_PASS_KEY = 'webdav_pass';
 
 // 日记状态接口
 interface DiaryState {
@@ -31,6 +40,8 @@ interface DiaryContextType {
   importEntries: (data: ExportData, mode: 'merge' | 'overwrite') => void;
   exportEntries: () => ExportData;
   refreshEntries: () => void;
+  markPendingSync: () => void;
+  markSaveAndExit: () => void;
 }
 
 // 初始状态
@@ -92,11 +103,94 @@ const DiaryContext = createContext<DiaryContextType | undefined>(undefined);
 // Provider 组件
 export function DiaryProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(diaryReducer, initialState);
+  
+  // 待同步数据引用
+  const pendingSyncRef = useRef<{ dataJson: string; imageDir: string } | null>(null);
+  // 是否正在同步
+  const isSyncingRef = useRef<boolean>(false);
 
-  // 初始化加载数据
+  // 初始化 WebDAV 并加载数据
   useEffect(() => {
     const entries = getAllEntries();
     dispatch({ type: 'SET_ENTRIES', payload: entries });
+
+    // 初始化 WebDAV 客户端
+    const initWebDAV = async () => {
+      try {
+        const savedUrl = await SecureStore.getItemAsync(WEBDAV_URL_KEY);
+        const savedUser = await SecureStore.getItemAsync(WEBDAV_USER_KEY);
+        const savedPass = await SecureStore.getItemAsync(WEBDAV_PASS_KEY);
+        
+        if (savedUrl && savedUser && savedPass) {
+          webdavService.initialize(savedUrl, savedUser, savedPass);
+          console.log('WebDAV 客户端已初始化');
+        }
+      } catch (error) {
+        console.error('初始化 WebDAV 失败:', error);
+      }
+    };
+    initWebDAV();
+  }, []);
+
+  // 执行待同步操作
+  const executePendingSync = useCallback(async () => {
+    if (!pendingSyncRef.current) {
+      return;
+    }
+    if (isSyncingRef.current) {
+      return;
+    }
+    
+    if (!getAutoSyncEnabled()) {
+      pendingSyncRef.current = null;
+      return;
+    }
+    
+    isSyncingRef.current = true;
+    
+    // 30秒超时
+    const timeoutPromise = new Promise<null>((_, reject) => {
+      setTimeout(() => reject(new Error('同步超时')), 30000);
+    });
+    
+    try {
+      const { dataJson, imageDir } = pendingSyncRef.current;
+      const result = await Promise.race([
+        webdavService.autoSyncWithData(dataJson, imageDir),
+        timeoutPromise
+      ]) as string | null;
+      
+      if (result) {
+        setLastSyncTime(Date.now());
+      }
+    } catch (error) {
+      console.error('自动同步失败:', error);
+    } finally {
+      isSyncingRef.current = false;
+      pendingSyncRef.current = null;
+    }
+  }, []);
+
+  // 标记待同步数据并立即开始同步
+  const markPendingSync = useCallback(() => {
+    const data = exportAllData();
+    const dataJson = JSON.stringify(data);
+    const imageDir = getImageDir();
+    pendingSyncRef.current = { dataJson, imageDir };
+    // 立即开始同步
+    executePendingSync();
+  }, [executePendingSync]);
+
+  // 标记"保存并退出"（目前用于标记，但不用于触发同步）
+  const markSaveAndExit = useCallback(() => {
+    // 占位
+  }, []);
+
+  // 移除 AppState 监听
+  // 注：由于 Android 后台会挂起 JS thread，后台触发同步不可靠
+  // 目前只在点击保存时立即同步
+  useEffect(() => {
+    // 占位 effect，避免其他代码引用
   }, []);
 
   // 添加日记条目
@@ -194,7 +288,9 @@ export function DiaryProvider({ children }: { children: React.ReactNode }) {
     importEntries,
     exportEntries,
     refreshEntries,
-  }), [state, addEntry, updateEntry, deleteEntry, getEntryById, getEntriesByDateRange, getTodayEntry, getThisDayLastYearEntries, importEntries, exportEntries, refreshEntries]);
+    markPendingSync,
+    markSaveAndExit,
+  }), [state, addEntry, updateEntry, deleteEntry, getEntryById, getEntriesByDateRange, getTodayEntry, getThisDayLastYearEntries, importEntries, exportEntries, refreshEntries, markPendingSync, markSaveAndExit]);
 
   return <DiaryContext.Provider value={value}>{children}</DiaryContext.Provider>;
 }

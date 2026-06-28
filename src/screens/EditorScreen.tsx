@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -19,12 +19,12 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
-import { MoodPicker, WeatherPicker, TemplateModal, MarkdownPreview, ThemedAlert } from '../components';
+import { MoodPicker, WeatherPicker, TemplateModal, MarkdownPreview, ThemedAlert, LocationModal } from '../components';
 import { useDiary } from '../context';
 import { useTheme } from '../context/ThemeProvider';
 import { useDebounce, useThemedAlert } from '../hooks';
 import { Layout, Typography } from '../constants';
-import { RootStackParamList, DiaryEntry, DiaryTemplate } from '../types';
+import { RootStackParamList, DiaryEntry, DiaryTemplate, LocationInfo } from '../types';
 import { formatDateId, formatDateDisplay, formatTime, countWords, formatTimeSeparator } from '../utils/dateUtils';
 import {
   createDiaryEntryId,
@@ -61,7 +61,7 @@ interface HistoryState {
 export function EditorScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<EditorRouteProp>();
-  const { state, getEntryById, addEntry, updateEntry, deleteEntry } = useDiary();
+  const { state, getEntryById, addEntry, updateEntry, deleteEntry, markPendingSync, markSaveAndExit } = useDiary();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { showAlert, alertConfig, hideAlert } = useThemedAlert();
@@ -90,9 +90,11 @@ export function EditorScreen() {
   const [weather, setWeather] = useState<string | undefined>(existingEntry?.weather);
   const [images, setImages] = useState<string[]>(getEntryImages(existingEntry));
   const [tags, setTags] = useState<string[]>(existingEntry?.tags || []);
+  const [location, setLocation] = useState<LocationInfo | undefined>(existingEntry?.location);
   const [templateUsed, setTemplateUsed] = useState<string | undefined>(existingEntry?.templateUsed);
   const [showTemplateModal, setShowTemplateModal] = useState(!isEditing && !content);
   const [showTagModal, setShowTagModal] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [writingMode, setWritingMode] = useState(false);
@@ -671,6 +673,7 @@ export function EditorScreen() {
       images: images.length > 0 ? images : undefined,
       tags: tags.length > 0 ? tags : undefined,
       templateUsed,
+      location,
       wordCount: countWords(content),
     };
 
@@ -679,6 +682,10 @@ export function EditorScreen() {
     } else {
       addEntry(entry);
     }
+
+    // 标记保存并退出（实际同步在 App 进入后台时触发）
+    markSaveAndExit();
+    markPendingSync();
 
     clearDraft();
     navigation.goBack();
@@ -779,6 +786,29 @@ export function EditorScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={[styles.headerDate, { color: colors.textPrimary }]}>{formatDateDisplay(new Date(initialDate + 'T00:00:00'))}</Text>
+          {location ? (
+            <TouchableOpacity 
+              style={styles.locationRow}
+              onPress={() => setShowLocationModal(true)}
+              activeOpacity={0.7}
+            >
+              <Feather name="map-pin" size={12} color={colors.primary} />
+              <Text style={[styles.locationText, { color: colors.primary }]} numberOfLines={1}>
+                {location.name}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              style={styles.locationRow}
+              onPress={() => setShowLocationModal(true)}
+              activeOpacity={0.7}
+            >
+              <Feather name="map-pin" size={12} color={colors.textMuted} />
+              <Text style={[styles.locationText, { color: colors.textMuted }]}>
+                添加位置
+              </Text>
+            </TouchableOpacity>
+          )}
           <Text style={[styles.wordCount, { color: colors.textMuted }]}>{countWords(content)} 字</Text>
           {shouldDisplayEntryTime({ date: entryDate, createdAt: entryCreatedAt }) && (
             <Text style={[styles.headerTime, { color: colors.textMuted }]}>{formatTime(entryDate)}</Text>
@@ -1168,6 +1198,16 @@ export function EditorScreen() {
         </SafeAreaView>
       </Modal>
 
+      <LocationModal
+        visible={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onSelect={(loc) => {
+          setLocation(loc);
+          if (loc) setHasChanges(true);
+        }}
+        initialLocation={location}
+      />
+
       {Platform.OS === 'android' && (
         <ThemedAlert
           visible={!!alertConfig}
@@ -1214,6 +1254,16 @@ const styles = StyleSheet.create({
   headerTime: {
     fontSize: Typography.fontSize.xs,
     marginTop: Layout.spacing.xs / 4,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Layout.spacing.xs / 2,
+    gap: Layout.spacing.xs / 2,
+  },
+  locationText: {
+    fontSize: Typography.fontSize.xs,
+    maxWidth: 200,
   },
   keyboardView: {
     flex: 1,

@@ -1,3 +1,4 @@
+import WebdavSettingsScreen from '../screens/WebdavSettingsScreen';
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -138,6 +139,16 @@ export function AppNavigator() {
         name="DiaryDetail" 
         component={DiaryDetailScreen}
         options={{
+          animation: 'slide_from_right',
+        }}
+      />
+	  {/* 🌟 新增：WebDAV 云同步设置页面 */}
+      <Stack.Screen 
+        name="WebdavSettings" 
+        component={WebdavSettingsScreen}
+        options={{
+          headerShown: true, // 注意：这里建议开启 header，方便用户返回
+          title: '☁️ 云同步设置',
           animation: 'slide_from_right',
         }}
       />

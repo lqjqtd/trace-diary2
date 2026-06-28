@@ -73,6 +73,8 @@ const STORAGE_KEYS = {
   IMAGE_COMPRESSION: 'image_compression',
   ONBOARDING_DONE: 'onboarding_done',
   TAG_PRESETS: 'tag_presets',
+  LAST_SYNC_TIME: 'last_sync_time',
+  AUTO_SYNC_ENABLED: 'auto_sync_enabled',
 } as const;
 
 // ============ 日记条目相关 ============
@@ -320,5 +322,23 @@ export const getDraft = (): DraftData | null => {
 
 export const clearDraft = (): void => {
   getStorage().delete(DRAFT_KEY);
+};
+
+// ============ 同步状态相关 ============
+
+export const getLastSyncTime = (): number => {
+  return getStorage().getNumber(STORAGE_KEYS.LAST_SYNC_TIME) ?? 0;
+};
+
+export const setLastSyncTime = (time: number): void => {
+  getStorage().set(STORAGE_KEYS.LAST_SYNC_TIME, time);
+};
+
+export const getAutoSyncEnabled = (): boolean => {
+  return getStorage().getBoolean(STORAGE_KEYS.AUTO_SYNC_ENABLED) ?? false;
+};
+
+export const setAutoSyncEnabled = (enabled: boolean): void => {
+  getStorage().set(STORAGE_KEYS.AUTO_SYNC_ENABLED, enabled);
 };
 

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -209,6 +209,14 @@ export function DiaryDetailScreen() {
                     <Text style={[styles.metaText, { color: colors.textSecondary }]}>{weatherOption.label}</Text>
                   </View>
                 )}
+                {entry.location && (
+                  <View style={styles.metaItem}>
+                    <Feather name="map-pin" size={14} color={colors.textMuted} />
+                    <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
+                      {entry.location.name}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.metaItem}>
                   <Feather name="edit-3" size={14} color={colors.textMuted} />
                   <Text style={[styles.metaText, { color: colors.textSecondary }]}>{entry.wordCount} 字</Text>
@@ -278,6 +286,14 @@ export function DiaryDetailScreen() {
                   color={Colors.weatherColors[entry.weather as keyof typeof Colors.weatherColors]} 
                 />
                 <Text style={[styles.metaText, { color: colors.textSecondary }]}>{weatherOption.label}</Text>
+              </View>
+            )}
+            {entry.location && (
+              <View style={styles.metaItem}>
+                <Feather name="map-pin" size={14} color={colors.textMuted} />
+                <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {entry.location.name}
+                </Text>
               </View>
             )}
             <View style={styles.metaItem}>
