@@ -6,12 +6,14 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Image,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
   Modal,
   BackHandler,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -99,6 +101,9 @@ export function EditorScreen() {
   const [showPreview, setShowPreview] = useState(false);
   const [writingMode, setWritingMode] = useState(false);
   const [showSortModal, setShowSortModal] = useState(false);
+  const [showNearbyLocations, setShowNearbyLocations] = useState(false);
+  const [nearbyLocations, setNearbyLocations] = useState<LocationInfo[]>([]);
+  const [loadingNearby, setLoadingNearby] = useState(false);
   const [tagPresets, setTagPresets] = useState<string[]>(() => getTagPresets());
   const [newTag, setNewTag] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
@@ -124,6 +129,7 @@ export function EditorScreen() {
   const [historyIndex, setHistoryIndex] = useState(0);
   const historyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [draftChecked, setDraftChecked] = useState(false);
+  const locationClearedRef = useRef(false);
 
   const presetTags = useMemo(() => {
     return tagPresets.filter((tag) => !tags.includes(tag));
@@ -271,10 +277,92 @@ export function EditorScreen() {
   }, [diaryId, existingEntry, draftChecked, draftOnlyMode]);
 
   useEffect(() => {
+    if (!draftChecked) return;
+    if (isEditing) return;
+    if (location) return;
+    if (locationClearedRef.current) return;
+
+    let cancelled = false;
+
+    async function autoLocate() {
+      try {
+        const { getCurrentLocation } = await import('../utils/locationUtils');
+        const { findCustomLocation } = await import('../api/storage');
+        const result = await getCurrentLocation();
+        if (!cancelled && result.locationInfo && !locationClearedRef.current) {
+          let loc = result.locationInfo;
+          // 应用自定义名称
+          if (loc.latitude && loc.longitude) {
+            const custom = findCustomLocation(loc.latitude, loc.longitude);
+            if (custom) {
+              loc = { ...loc, name: custom.name };
+            }
+          }
+          setLocation(loc);
+          setHasChanges(true);
+        }
+      } catch (e) {
+        // 静默失败，不打扰用户
+      }
+    }
+
+    autoLocate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftChecked, isEditing, location]);
+
+  useEffect(() => {
     if (showTagModal) {
       setTagPresets(getTagPresets());
     }
   }, [showTagModal]);
+
+  useEffect(() => {
+    const lat = location?.latitude;
+    const lng = location?.longitude;
+    if (!lat || !lng) {
+      setNearbyLocations([]);
+      return;
+    }
+
+    const confirmedLat = lat;
+    const confirmedLng = lng;
+    let cancelled = false;
+
+    async function loadNearby() {
+      try {
+        const { getNearbyPlaces } = await import('../utils/locationUtils');
+        const { findCustomLocation } = await import('../api/storage');
+        setLoadingNearby(true);
+        const places = await getNearbyPlaces(confirmedLat, confirmedLng);
+        if (!cancelled) {
+          const namedPlaces = places.map((place: LocationInfo) => {
+            if (!place.latitude || !place.longitude) return place;
+            const custom = findCustomLocation(place.latitude, place.longitude);
+            if (custom) {
+              return { ...place, name: custom.name };
+            }
+            return place;
+          });
+          setNearbyLocations(namedPlaces);
+        }
+      } catch (e) {
+        // 静默失败
+      } finally {
+        if (!cancelled) {
+          setLoadingNearby(false);
+        }
+      }
+    }
+
+    loadNearby();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location?.latitude, location?.longitude]);
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -790,6 +878,11 @@ export function EditorScreen() {
             <TouchableOpacity 
               style={styles.locationRow}
               onPress={() => setShowLocationModal(true)}
+              onLongPress={() => {
+                if (nearbyLocations.length > 0 || loadingNearby) {
+                  setShowNearbyLocations(true);
+                }
+              }}
               activeOpacity={0.7}
             >
               <Feather name="map-pin" size={12} color={colors.primary} />
@@ -1198,11 +1291,72 @@ export function EditorScreen() {
         </SafeAreaView>
       </Modal>
 
+      <Modal
+        visible={showNearbyLocations}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNearbyLocations(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowNearbyLocations(false)}>
+          <View style={styles.nearbyOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.nearbyContainer, { backgroundColor: colors.background }]}>
+                <View style={[styles.nearbyHeader, { borderBottomColor: colors.divider }]}>
+                  <Text style={[styles.nearbyTitle, { color: colors.textPrimary }]}>选择附近位置</Text>
+                  <TouchableOpacity onPress={() => setShowNearbyLocations(false)} style={styles.nearbyCloseBtn}>
+                    <Feather name="x" size={20} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.nearbyList} showsVerticalScrollIndicator={false}>
+                  {loadingNearby && (
+                    <View style={styles.nearbyLoading}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <Text style={[styles.nearbyLoadingText, { color: colors.textMuted }]}>加载中...</Text>
+                    </View>
+                  )}
+
+                  {!loadingNearby && nearbyLocations.length === 0 && (
+                    <View style={styles.nearbyEmpty}>
+                      <Text style={[styles.nearbyEmptyText, { color: colors.textMuted }]}>暂无附近位置</Text>
+                    </View>
+                  )}
+
+                  {nearbyLocations.map((place, index) => (
+                    <TouchableOpacity
+                      key={`${place.name}-${index}`}
+                      style={[styles.nearbyItem, { backgroundColor: colors.inputBackground }]}
+                      onPress={() => {
+                        setLocation(place);
+                        setHasChanges(true);
+                        locationClearedRef.current = false;
+                        setShowNearbyLocations(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="map-pin" size={16} color={colors.textMuted} />
+                      <Text style={[styles.nearbyItemText, { color: colors.textPrimary }]} numberOfLines={1}>
+                        {place.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <LocationModal
         visible={showLocationModal}
         onClose={() => setShowLocationModal(false)}
         onSelect={(loc) => {
-          setLocation(loc);
+          if (loc === null) {
+            locationClearedRef.current = true;
+          } else {
+            locationClearedRef.current = false;
+          }
+          setLocation(loc ?? undefined);
           if (loc) setHasChanges(true);
         }}
         initialLocation={location}
@@ -1620,6 +1774,63 @@ const styles = StyleSheet.create({
   },
   dialogExitText: {
     fontSize: Typography.fontSize.sm,
+  },
+  nearbyOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  nearbyContainer: {
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
+    maxHeight: '60%',
+  },
+  nearbyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Layout.spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  nearbyTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold as any,
+  },
+  nearbyCloseBtn: {
+    padding: Layout.spacing.xs,
+  },
+  nearbyList: {
+    paddingHorizontal: Layout.spacing.lg,
+    paddingVertical: Layout.spacing.md,
+  },
+  nearbyLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Layout.spacing.lg,
+    gap: Layout.spacing.sm,
+  },
+  nearbyLoadingText: {
+    fontSize: Typography.fontSize.sm,
+  },
+  nearbyEmpty: {
+    alignItems: 'center',
+    paddingVertical: Layout.spacing.xl,
+  },
+  nearbyEmptyText: {
+    fontSize: Typography.fontSize.sm,
+  },
+  nearbyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Layout.spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    marginBottom: Layout.spacing.sm,
+    gap: Layout.spacing.sm,
+  },
+  nearbyItemText: {
+    fontSize: Typography.fontSize.sm,
+    flex: 1,
   },
 });
 

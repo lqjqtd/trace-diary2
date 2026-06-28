@@ -75,6 +75,7 @@ const STORAGE_KEYS = {
   TAG_PRESETS: 'tag_presets',
   LAST_SYNC_TIME: 'last_sync_time',
   AUTO_SYNC_ENABLED: 'auto_sync_enabled',
+  CUSTOM_LOCATIONS: 'custom_locations',
 } as const;
 
 // ============ 日记条目相关 ============
@@ -258,6 +259,78 @@ export const getTagPresets = (): string[] => {
 export const setTagPresets = (tags: string[]): void => {
   getStorage().set(STORAGE_KEYS.TAG_PRESETS, JSON.stringify(tags));
 };
+
+// ============ 自定义地点相关 ============
+
+export interface CustomLocation {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+export const getCustomLocations = (): CustomLocation[] => {
+  const data = getStorage().getString(STORAGE_KEYS.CUSTOM_LOCATIONS);
+  if (!data) return [];
+  try {
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (loc) =>
+        typeof loc?.id === 'string' &&
+        typeof loc?.name === 'string' &&
+        typeof loc?.latitude === 'number' &&
+        typeof loc?.longitude === 'number'
+    );
+  } catch {
+    return [];
+  }
+};
+
+export const saveCustomLocation = (location: CustomLocation): void => {
+  const locations = getCustomLocations();
+  const existingIndex = locations.findIndex((l) => l.id === location.id);
+  if (existingIndex >= 0) {
+    locations[existingIndex] = location;
+  } else {
+    locations.push(location);
+  }
+  getStorage().set(STORAGE_KEYS.CUSTOM_LOCATIONS, JSON.stringify(locations));
+};
+
+export const findCustomLocation = (
+  latitude: number,
+  longitude: number,
+  threshold: number = 50
+): CustomLocation | null => {
+  const locations = getCustomLocations();
+  for (const loc of locations) {
+    const distance = calculateDistance(latitude, longitude, loc.latitude, loc.longitude);
+    if (distance <= threshold) {
+      return loc;
+    }
+  }
+  return null;
+};
+
+function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 // ============ 导入导出相关 ============
 

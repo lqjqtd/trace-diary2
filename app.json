@@ -13,7 +13,7 @@
       "backgroundColor": "#F4F4F8"
     },
     "ios": {
-      "bundleIdentifier": "com.trace.diary",
+      "bundleIdentifier": "com.trace_suo.diary",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -30,11 +30,13 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.trace.diary"
+      "package": "com.trace_suo.diary"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -50,6 +52,18 @@
         "expo-image-picker",
         {
           "photosPermission": "允许素履访问相册以添加图片到日记"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationPermission": "允许素履访问位置以记录日记地点"
+        }
+      ],
+      [
+        "./plugins/withAMapLocation.js",
+        {
+          "apiKey": "b6207b5b2f71af9ed17f2394888ba571"
         }
       ],
       "expo-notifications",

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@heytea/react-native-amap-geolocation": "^1.0.9",
     "@react-navigation/bottom-tabs": "^7.10.1",
     "@react-navigation/native": "^7.1.28",
     "@react-navigation/native-stack": "^7.11.0",
