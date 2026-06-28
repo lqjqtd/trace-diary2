@@ -206,7 +206,10 @@ export function DiaryDetailScreen() {
                       size={16} 
                       color={Colors.weatherColors[entry.weather as keyof typeof Colors.weatherColors]} 
                     />
-                    <Text style={[styles.metaText, { color: colors.textSecondary }]}>{weatherOption.label}</Text>
+                    <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                      {weatherOption.label}
+                      {entry.temperature !== undefined && ` ${entry.temperature}°`}
+                    </Text>
                   </View>
                 )}
                 {entry.location && (
@@ -285,7 +288,10 @@ export function DiaryDetailScreen() {
                   size={16} 
                   color={Colors.weatherColors[entry.weather as keyof typeof Colors.weatherColors]} 
                 />
-                <Text style={[styles.metaText, { color: colors.textSecondary }]}>{weatherOption.label}</Text>
+                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                  {weatherOption.label}
+                  {entry.temperature !== undefined && ` ${entry.temperature}°`}
+                </Text>
               </View>
             )}
             {entry.location && (

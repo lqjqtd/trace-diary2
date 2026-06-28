@@ -312,10 +312,14 @@ export const Colors = {
   weatherColors: {
     sunny: '#FFD93D',
     cloudy: '#B0C4DE',
+    overcast: '#9CA3AF',
     rainy: '#6BCAFF',
+    thunderstorm: '#708090',
     snowy: '#E8E8E8',
     windy: '#87CEEB',
-    stormy: '#708090',
+    foggy: '#B8B8B8',
+    hazy: '#A89F8E',
+    sandstorm: '#C4A77D',
   },
 
   tabBar: {

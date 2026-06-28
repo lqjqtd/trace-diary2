@@ -48,9 +48,19 @@ export function DiaryCard({ entry, onPress, onLongPress }: DiaryCardProps) {
           )}
           <View style={styles.dateContainer}>
             <Text style={[styles.date, { color: colors.textPrimary }]}>{formatDateDisplay(entry.date)}</Text>
-            <Text style={[styles.weekday, { color: colors.textSecondary }]}>
-              {entryTime ? `${formatWeekday(entry.date)} · ${entryTime}` : formatWeekday(entry.date)}
-            </Text>
+            <View style={styles.weekdayRow}>
+              <Text style={[styles.weekday, { color: colors.textSecondary }]}>
+                {entryTime ? `${formatWeekday(entry.date)} · ${entryTime}` : formatWeekday(entry.date)}
+              </Text>
+              {entry.location && (
+                <View style={styles.locationTag}>
+                  <Feather name="map-pin" size={10} color={colors.textMuted} />
+                  <Text style={[styles.locationText, { color: colors.textMuted }]} numberOfLines={1}>
+                    {entry.location.name}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
         <View style={styles.headerRight}>
@@ -61,6 +71,11 @@ export function DiaryCard({ entry, onPress, onLongPress }: DiaryCardProps) {
                 size={16} 
                 color={Colors.weatherColors[entry.weather as keyof typeof Colors.weatherColors]} 
               />
+              {entry.temperature !== undefined && (
+                <Text style={[styles.weatherTemp, { color: Colors.weatherColors[entry.weather as keyof typeof Colors.weatherColors] }]}>
+                  {entry.temperature}°
+                </Text>
+              )}
             </View>
           )}
           <Feather name="chevron-right" size={18} color={colors.textMuted} />
@@ -171,16 +186,35 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.semibold,
   },
+  weekdayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Layout.spacing.xs / 4,
+    gap: Layout.spacing.sm,
+  },
   weekday: {
     fontSize: Typography.fontSize.xs,
-    marginTop: Layout.spacing.xs / 4,
+  },
+  locationTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    maxWidth: 120,
+  },
+  locationText: {
+    fontSize: Typography.fontSize.xs,
   },
   weatherBadge: {
-    width: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Layout.spacing.sm,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+  },
+  weatherTemp: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.medium,
   },
   content: {
     marginVertical: Layout.spacing.sm,

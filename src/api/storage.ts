@@ -371,9 +371,11 @@ export interface DraftData {
   content: string;
   mood?: string;
   weather?: string;
+  temperature?: number;
   images?: string[];
   tags?: string[];
   templateUsed?: string;
+  location?: import('../types').LocationInfo;
   savedAt: number;
 }
 

@@ -179,12 +179,16 @@ export const MOOD_OPTIONS = [
 
 // 天气选项
 export const WEATHER_OPTIONS = [
-  { id: 'sunny', icon: 'sun', label: '晴天' },
+  { id: 'sunny', icon: 'sun', label: '晴' },
   { id: 'cloudy', icon: 'cloud', label: '多云' },
-  { id: 'rainy', icon: 'cloud-rain', label: '雨天' },
-  { id: 'snowy', icon: 'cloud-snow', label: '雪天' },
+  { id: 'overcast', icon: 'cloud', label: '阴' },
+  { id: 'rainy', icon: 'cloud-rain', label: '雨' },
+  { id: 'thunderstorm', icon: 'cloud-lightning', label: '雷暴' },
+  { id: 'snowy', icon: 'cloud-snow', label: '雪' },
   { id: 'windy', icon: 'wind', label: '大风' },
-  { id: 'stormy', icon: 'cloud-lightning', label: '雷暴' },
+  { id: 'foggy', icon: 'cloud', label: '雾' },
+  { id: 'hazy', icon: 'cloud', label: '霾' },
+  { id: 'sandstorm', icon: 'wind', label: '沙尘' },
 ];
 
 export const DIARY_TEMPLATES = [

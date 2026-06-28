@@ -14,6 +14,7 @@ export interface DiaryEntry {
   content: string; // Markdown 格式的日记内容
   mood?: string; // Emoji 字符, e.g., '😊'
   weather?: string; // 天气标识, e.g., 'sunny'
+  temperature?: number; // 温度（摄氏度）
   templateUsed?: string; // e.g., 'daily-review'
   wordCount: number;
   images?: string[]; // 图片文件名数组 (存储在 documentDirectory/diary-images/)
@@ -59,7 +60,17 @@ export interface DiaryTemplate {
 }
 
 // 天气类型
-export type WeatherType = 'sunny' | 'cloudy' | 'rainy' | 'snowy' | 'windy' | 'stormy';
+export type WeatherType =
+  | 'sunny'
+  | 'cloudy'
+  | 'overcast'
+  | 'rainy'
+  | 'thunderstorm'
+  | 'snowy'
+  | 'windy'
+  | 'foggy'
+  | 'hazy'
+  | 'sandstorm';
 
 // 心情选项
 export interface MoodOption {

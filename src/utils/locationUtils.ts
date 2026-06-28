@@ -474,3 +474,123 @@ export async function getNearbyPlaces(
     return [];
   }
 }
+
+// ============ 天气相关 ============
+
+export interface WeatherInfo {
+  weather: string;
+  temperature: number;
+  city: string;
+}
+
+const WEATHER_MAP: Record<string, string> = {
+  '晴': 'sunny',
+  '多云': 'cloudy',
+  '阴': 'overcast',
+  '阵雨': 'rainy',
+  '雷阵雨': 'thunderstorm',
+  '雷阵雨并伴有冰雹': 'thunderstorm',
+  '小雨': 'rainy',
+  '中雨': 'rainy',
+  '大雨': 'rainy',
+  '暴雨': 'rainy',
+  '大暴雨': 'rainy',
+  '特大暴雨': 'rainy',
+  '冻雨': 'rainy',
+  '小雪': 'snowy',
+  '中雪': 'snowy',
+  '大雪': 'snowy',
+  '暴雪': 'snowy',
+  '雨夹雪': 'snowy',
+  '阵雪': 'snowy',
+  '雾': 'foggy',
+  '冻雾': 'foggy',
+  '霾': 'hazy',
+  '浮尘': 'sandstorm',
+  '扬沙': 'sandstorm',
+  '沙尘暴': 'sandstorm',
+  '强沙尘暴': 'sandstorm',
+  '大风': 'windy',
+  '飓风': 'windy',
+  '龙卷风': 'windy',
+  '热带风暴': 'thunderstorm',
+};
+
+function mapWeather(weatherText: string): string {
+  if (!weatherText) return 'sunny';
+  if (WEATHER_MAP[weatherText]) {
+    return WEATHER_MAP[weatherText];
+  }
+  // 模糊匹配
+  if (weatherText.includes('晴')) return 'sunny';
+  if (weatherText.includes('雷')) return 'thunderstorm';
+  if (weatherText.includes('雪')) return 'snowy';
+  if (weatherText.includes('雨')) return 'rainy';
+  if (weatherText.includes('阴')) return 'overcast';
+  if (weatherText.includes('云')) return 'cloudy';
+  if (weatherText.includes('雾')) return 'foggy';
+  if (weatherText.includes('霾')) return 'hazy';
+  if (weatherText.includes('沙') || weatherText.includes('尘')) return 'sandstorm';
+  if (weatherText.includes('风')) return 'windy';
+  return 'sunny';
+}
+
+/**
+ * 根据城市编码获取实时天气
+ * @param adcode 城市编码（如 110101）
+ */
+export async function getWeatherByAdcode(adcode: string): Promise<WeatherInfo | null> {
+  if (GAODE_WEB_API_KEY === 'YOUR_GAODE_WEB_API_KEY' || !adcode) {
+    return null;
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `https://restapi.amap.com/v3/weather/weatherInfo?key=${GAODE_WEB_API_KEY}&city=${adcode}&extensions=base`
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data.status !== '1' || !data.lives || data.lives.length === 0) return null;
+
+    const live = data.lives[0];
+    return {
+      weather: mapWeather(live.weather),
+      temperature: parseInt(live.temperature, 10) || 0,
+      city: live.city || '',
+    };
+  } catch (error) {
+    console.error('[天气] 获取失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 根据经纬度获取实时天气（先逆地理编码拿城市编码）
+ */
+export async function getWeatherByLocation(
+  latitude: number,
+  longitude: number
+): Promise<WeatherInfo | null> {
+  if (GAODE_WEB_API_KEY === 'YOUR_GAODE_WEB_API_KEY') {
+    return null;
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `https://restapi.amap.com/v3/geocode/regeo?key=${GAODE_WEB_API_KEY}&location=${longitude},${latitude}&extensions=base`
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data.status !== '1' || !data.regeocode?.addressComponent?.adcode) return null;
+
+    const adcode = data.regeocode.addressComponent.adcode;
+    return await getWeatherByAdcode(adcode);
+  } catch (error) {
+    console.error('[天气] 通过经纬度获取失败:', error);
+    return null;
+  }
+}

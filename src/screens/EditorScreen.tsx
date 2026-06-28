@@ -21,11 +21,12 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
-import { MoodPicker, WeatherPicker, TemplateModal, MarkdownPreview, ThemedAlert, LocationModal } from '../components';
+import { MoodPicker, TemplateModal, MarkdownPreview, ThemedAlert, LocationModal } from '../components';
 import { useDiary } from '../context';
 import { useTheme } from '../context/ThemeProvider';
 import { useDebounce, useThemedAlert } from '../hooks';
-import { Layout, Typography } from '../constants';
+import { Layout, Typography, WEATHER_OPTIONS } from '../constants';
+import Colors from '../constants/Colors';
 import { RootStackParamList, DiaryEntry, DiaryTemplate, LocationInfo } from '../types';
 import { formatDateId, formatDateDisplay, formatTime, countWords, formatTimeSeparator } from '../utils/dateUtils';
 import {
@@ -90,6 +91,8 @@ export function EditorScreen() {
   const [content, setContent] = useState(existingEntry?.content || '');
   const [mood, setMood] = useState<string | undefined>(existingEntry?.mood);
   const [weather, setWeather] = useState<string | undefined>(existingEntry?.weather);
+  const [temperature, setTemperature] = useState<number | undefined>(existingEntry?.temperature);
+  const [showWeatherPicker, setShowWeatherPicker] = useState(false);
   const [images, setImages] = useState<string[]>(getEntryImages(existingEntry));
   const [tags, setTags] = useState<string[]>(existingEntry?.tags || []);
   const [location, setLocation] = useState<LocationInfo | undefined>(existingEntry?.location);
@@ -130,6 +133,7 @@ export function EditorScreen() {
   const historyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [draftChecked, setDraftChecked] = useState(false);
   const locationClearedRef = useRef(false);
+  const weatherManuallySetRef = useRef(false);
 
   const presetTags = useMemo(() => {
     return tagPresets.filter((tag) => !tags.includes(tag));
@@ -182,9 +186,11 @@ export function EditorScreen() {
       setContent(draft.content);
       if (draft.mood) setMood(draft.mood);
       if (draft.weather) setWeather(draft.weather);
+      if (draft.temperature !== undefined) setTemperature(draft.temperature);
       if (draft.images) setImages(draft.images);
       if (draft.tags) setTags(draft.tags);
       if (draft.templateUsed) setTemplateUsed(draft.templateUsed);
+      if (draft.location) setLocation(draft.location);
       setShowTemplateModal(false);
       clearDraft();
       setDraftChecked(true);
@@ -211,9 +217,11 @@ export function EditorScreen() {
               setContent(draft.content);
               if (draft.mood) setMood(draft.mood);
               if (draft.weather) setWeather(draft.weather);
+              if (draft.temperature !== undefined) setTemperature(draft.temperature);
               if (draft.images) setImages(draft.images);
               if (draft.tags) setTags(draft.tags);
               if (draft.templateUsed) setTemplateUsed(draft.templateUsed);
+              if (draft.location) setLocation(draft.location);
               setShowTemplateModal(false);
               setHasChanges(true);
               setHistory([{ content: draft.content, images: draft.images || [] }]);
@@ -233,7 +241,9 @@ export function EditorScreen() {
               setImages(mergedImages);
               if (!existingEntry.mood && draft.mood) setMood(draft.mood);
               if (!existingEntry.weather && draft.weather) setWeather(draft.weather);
+              if (!existingEntry.temperature && draft.temperature !== undefined) setTemperature(draft.temperature);
               if (!existingEntry.templateUsed && draft.templateUsed) setTemplateUsed(draft.templateUsed);
+              if (!existingEntry.location && draft.location) setLocation(draft.location);
               setShowTemplateModal(false);
               setHasChanges(true);
               setHistory([{ content: mergedContent, images: mergedImages }]);
@@ -263,9 +273,11 @@ export function EditorScreen() {
               setContent(draft.content);
               if (draft.mood) setMood(draft.mood);
               if (draft.weather) setWeather(draft.weather);
+              if (draft.temperature !== undefined) setTemperature(draft.temperature);
               if (draft.images) setImages(draft.images);
               if (draft.tags) setTags(draft.tags);
               if (draft.templateUsed) setTemplateUsed(draft.templateUsed);
+              if (draft.location) setLocation(draft.location);
               setShowTemplateModal(false);
               clearDraft();
               setDraftChecked(true);
@@ -364,6 +376,46 @@ export function EditorScreen() {
     };
   }, [location?.latitude, location?.longitude]);
 
+  useEffect(() => {
+    const lat = location?.latitude;
+    const lng = location?.longitude;
+    if (!lat || !lng) return;
+    if (weatherManuallySetRef.current) return;
+
+    const entryDateObj = new Date(entryDate);
+    const today = new Date();
+    const isToday =
+      entryDateObj.getFullYear() === today.getFullYear() &&
+      entryDateObj.getMonth() === today.getMonth() &&
+      entryDateObj.getDate() === today.getDate();
+
+    if (!isToday) return;
+
+    const confirmedLat = lat;
+    const confirmedLng = lng;
+    let cancelled = false;
+
+    async function loadWeather() {
+      try {
+        const { getWeatherByLocation } = await import('../utils/locationUtils');
+        const weatherInfo = await getWeatherByLocation(confirmedLat, confirmedLng);
+        if (!cancelled && weatherInfo) {
+          setWeather(weatherInfo.weather);
+          setTemperature(weatherInfo.temperature);
+          setHasChanges(true);
+        }
+      } catch (e) {
+        // 静默失败
+      }
+    }
+
+    loadWeather();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location?.latitude, location?.longitude, entryDate]);
+
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
   const historyIndexRef = useRef(historyIndex);
@@ -423,6 +475,7 @@ export function EditorScreen() {
         content,
         mood,
         weather,
+        temperature,
         images: images.length > 0 ? images : undefined,
         tags: tags.length > 0 ? tags : undefined,
         templateUsed,
@@ -430,7 +483,7 @@ export function EditorScreen() {
       };
       debouncedSave(entry);
     }
-  }, [content, mood, weather, images, tags, hasChanges, templateUsed, diaryId, entryDate, entryCreatedAt, debouncedSave, draftOnlyMode]);
+  }, [content, mood, weather, temperature, images, tags, hasChanges, templateUsed, diaryId, entryDate, entryCreatedAt, debouncedSave, draftOnlyMode]);
 
   const handleContentChange = (text: string) => {
     setContent(text);
@@ -444,7 +497,11 @@ export function EditorScreen() {
   };
 
   const handleWeatherSelect = (selectedWeather: string) => {
+    weatherManuallySetRef.current = true;
     setWeather(selectedWeather === weather ? undefined : selectedWeather);
+    if (selectedWeather === weather) {
+      setTemperature(undefined);
+    }
     setHasChanges(true);
   };
 
@@ -735,9 +792,11 @@ export function EditorScreen() {
           content,
           mood,
           weather,
+          temperature,
           images: images.length > 0 ? images : undefined,
           tags: tags.length > 0 ? tags : undefined,
           templateUsed,
+          location,
           savedAt: Date.now(),
         });
       }
@@ -758,6 +817,7 @@ export function EditorScreen() {
       content,
       mood,
       weather,
+      temperature,
       images: images.length > 0 ? images : undefined,
       tags: tags.length > 0 ? tags : undefined,
       templateUsed,
@@ -787,9 +847,11 @@ export function EditorScreen() {
           content,
           mood,
           weather,
+          temperature,
           images: images.length > 0 ? images : undefined,
           tags: tags.length > 0 ? tags : undefined,
           templateUsed,
+          location,
           savedAt: Date.now(),
         });
       }
@@ -844,9 +906,11 @@ export function EditorScreen() {
         content,
         mood,
         weather,
+        temperature,
         images: images.length > 0 ? images : undefined,
         tags: tags.length > 0 ? tags : undefined,
         templateUsed,
+        location,
         savedAt: Date.now(),
       });
     }
@@ -874,34 +938,66 @@ export function EditorScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={[styles.headerDate, { color: colors.textPrimary }]}>{formatDateDisplay(new Date(initialDate + 'T00:00:00'))}</Text>
-          {location ? (
-            <TouchableOpacity 
-              style={styles.locationRow}
-              onPress={() => setShowLocationModal(true)}
-              onLongPress={() => {
-                if (nearbyLocations.length > 0 || loadingNearby) {
-                  setShowNearbyLocations(true);
-                }
-              }}
+          <View style={styles.locationRow}>
+            {location ? (
+              <TouchableOpacity 
+                style={styles.locationContent}
+                onPress={() => setShowLocationModal(true)}
+                onLongPress={() => {
+                  if (nearbyLocations.length > 0 || loadingNearby) {
+                    setShowNearbyLocations(true);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Feather name="map-pin" size={12} color={colors.primary} />
+                <Text style={[styles.locationText, { color: colors.primary }]} numberOfLines={1}>
+                  {location.name}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={styles.locationContent}
+                onPress={() => setShowLocationModal(true)}
+                activeOpacity={0.7}
+              >
+                <Feather name="map-pin" size={12} color={colors.textMuted} />
+                <Text style={[styles.locationText, { color: colors.textMuted }]}>
+                  添加位置
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[
+                styles.weatherBadge,
+                weather && { backgroundColor: (Colors.weatherColors as any)[weather] + '20' },
+              ]}
+              onPress={() => setShowWeatherPicker(true)}
               activeOpacity={0.7}
             >
-              <Feather name="map-pin" size={12} color={colors.primary} />
-              <Text style={[styles.locationText, { color: colors.primary }]} numberOfLines={1}>
-                {location.name}
-              </Text>
+              {weather ? (
+                <>
+                  <Feather
+                    name={(WEATHER_OPTIONS.find((w) => w.id === weather)?.icon || 'cloud') as any}
+                    size={12}
+                    color={(Colors.weatherColors as any)[weather] || colors.textMuted}
+                  />
+                  {temperature !== undefined && (
+                    <Text
+                      style={[
+                        styles.weatherTemp,
+                        { color: (Colors.weatherColors as any)[weather] || colors.textMuted },
+                      ]}
+                    >
+                      {temperature}°
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <Feather name="cloud" size={12} color={colors.textMuted} />
+              )}
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity 
-              style={styles.locationRow}
-              onPress={() => setShowLocationModal(true)}
-              activeOpacity={0.7}
-            >
-              <Feather name="map-pin" size={12} color={colors.textMuted} />
-              <Text style={[styles.locationText, { color: colors.textMuted }]}>
-                添加位置
-              </Text>
-            </TouchableOpacity>
-          )}
+          </View>
           <Text style={[styles.wordCount, { color: colors.textMuted }]}>{countWords(content)} 字</Text>
           {shouldDisplayEntryTime({ date: entryDate, createdAt: entryCreatedAt }) && (
             <Text style={[styles.headerTime, { color: colors.textMuted }]}>{formatTime(entryDate)}</Text>
@@ -1011,10 +1107,7 @@ export function EditorScreen() {
           contentContainerStyle={styles.scrollContent}
         >
           {!writingMode && (
-            <>
-              <MoodPicker selectedMood={mood} onSelect={handleMoodSelect} />
-              <WeatherPicker selectedWeather={weather} onSelect={handleWeatherSelect} />
-            </>
+            <MoodPicker selectedMood={mood} onSelect={handleMoodSelect} />
           )}
 
           <View style={styles.editorContainer}>
@@ -1347,6 +1440,93 @@ export function EditorScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* 天气选择弹窗 */}
+      <Modal
+        visible={showWeatherPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowWeatherPicker(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowWeatherPicker(false)}>
+          <View style={styles.weatherPickerOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.weatherPickerContainer, { backgroundColor: colors.background }]}>
+                <View style={[styles.weatherPickerHeader, { borderBottomColor: colors.divider }]}>
+                  <Text style={[styles.weatherPickerTitle, { color: colors.textPrimary }]}>选择天气</Text>
+                  <TouchableOpacity onPress={() => setShowWeatherPicker(false)} style={styles.weatherPickerClose}>
+                    <Feather name="x" size={20} color={colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.weatherPickerGrid}>
+                  {WEATHER_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[
+                        styles.weatherPickerItem,
+                        { backgroundColor: colors.inputBackground },
+                        weather === option.id && {
+                          borderColor: (Colors.weatherColors as any)[option.id],
+                          borderWidth: 2,
+                        },
+                      ]}
+                      onPress={() => {
+                        weatherManuallySetRef.current = true;
+                        if (weather === option.id) {
+                          setWeather(undefined);
+                          setTemperature(undefined);
+                        } else {
+                          setWeather(option.id);
+                        }
+                        setHasChanges(true);
+                        setShowWeatherPicker(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Feather
+                        name={option.icon as any}
+                        size={28}
+                        color={
+                          weather === option.id
+                            ? (Colors.weatherColors as any)[option.id]
+                            : colors.textMuted
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.weatherPickerLabel,
+                          {
+                            color: weather === option.id
+                              ? (Colors.weatherColors as any)[option.id]
+                              : colors.textSecondary,
+                          },
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.weatherClearBtn, { borderTopColor: colors.divider }]}
+                  onPress={() => {
+                    weatherManuallySetRef.current = true;
+                    setWeather(undefined);
+                    setTemperature(undefined);
+                    setHasChanges(true);
+                    setShowWeatherPicker(false);
+                  }}
+                >
+                  <Feather name="trash-2" size={16} color={colors.error} />
+                  <Text style={[styles.weatherClearText, { color: colors.error }]}>清除天气</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       <LocationModal
         visible={showLocationModal}
         onClose={() => setShowLocationModal(false)}
@@ -1413,11 +1593,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: Layout.spacing.xs / 2,
+    gap: Layout.spacing.sm,
+  },
+  locationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Layout.spacing.xs / 2,
   },
   locationText: {
     fontSize: Typography.fontSize.xs,
-    maxWidth: 200,
+    maxWidth: 160,
+  },
+  weatherBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: Layout.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+  },
+  weatherTemp: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.medium as any,
   },
   keyboardView: {
     flex: 1,
@@ -1831,6 +2029,63 @@ const styles = StyleSheet.create({
   nearbyItemText: {
     fontSize: Typography.fontSize.sm,
     flex: 1,
+  },
+  weatherPickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  weatherPickerContainer: {
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
+    paddingBottom: Layout.spacing.xl,
+  },
+  weatherPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Layout.spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  weatherPickerTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold as any,
+  },
+  weatherPickerClose: {
+    padding: Layout.spacing.xs,
+  },
+  weatherPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: Layout.spacing.md,
+    justifyContent: 'space-around',
+  },
+  weatherPickerItem: {
+    width: '22%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Layout.borderRadius.md,
+    marginBottom: Layout.spacing.sm,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    gap: Layout.spacing.xs / 2,
+  },
+  weatherPickerLabel: {
+    fontSize: Typography.fontSize.xs,
+  },
+  weatherClearBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Layout.spacing.sm,
+    paddingVertical: Layout.spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: Layout.spacing.lg,
+  },
+  weatherClearText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
   },
 });
 
