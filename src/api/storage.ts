@@ -1,6 +1,6 @@
 import { MMKV } from 'react-native-mmkv';
 import * as SecureStore from 'expo-secure-store';
-import { DiaryEntry, AppSettings, ExportData } from '../types';
+import { DiaryEntry, AppSettings, ExportData, WritingSettings } from '../types';
 import { generateMmkvEncryptionKey } from './mmkvEncryption';
 import { LEGACY_FALLBACK_ENCRYPTION_KEY, resolveFallbackEncryptionKey } from './storageKeyResolver';
 import { resolveImageCompressionEnabled } from '../utils/imageCompressionPolicy';
@@ -76,6 +76,7 @@ const STORAGE_KEYS = {
   LAST_SYNC_TIME: 'last_sync_time',
   AUTO_SYNC_ENABLED: 'auto_sync_enabled',
   CUSTOM_LOCATIONS: 'custom_locations',
+  WRITING_SETTINGS: 'writing_settings',
 } as const;
 
 // ============ 日记条目相关 ============
@@ -415,5 +416,29 @@ export const getAutoSyncEnabled = (): boolean => {
 
 export const setAutoSyncEnabled = (enabled: boolean): void => {
   getStorage().set(STORAGE_KEYS.AUTO_SYNC_ENABLED, enabled);
+};
+
+// ============ 文字设置相关 ============
+
+const DEFAULT_WRITING_SETTINGS: WritingSettings = {
+  fontSize: 16,
+  lineHeight: 1.75,
+  letterSpacing: 0,
+};
+
+export const saveWritingSettings = (settings: WritingSettings): void => {
+  getStorage().set(STORAGE_KEYS.WRITING_SETTINGS, JSON.stringify(settings));
+};
+
+export const getWritingSettings = (): WritingSettings => {
+  try {
+    const settings = getStorage().getString(STORAGE_KEYS.WRITING_SETTINGS);
+    if (settings) {
+      return JSON.parse(settings);
+    }
+  } catch (error) {
+    console.error('Failed to parse writing settings:', error);
+  }
+  return DEFAULT_WRITING_SETTINGS;
 };
 

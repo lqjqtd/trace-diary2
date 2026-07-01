@@ -28,6 +28,7 @@ import { formatDateDisplay, formatTime, formatWeekday } from '../utils/dateUtils
 import { getImageUri } from '../utils/imageStorage';
 import { getEntryImages } from '../utils/entryUtils';
 import { shouldDisplayEntryTime } from '../utils/diaryIdentity';
+import { getWritingSettings } from '../api/storage';
 import { MarkdownPreview, ThemedAlert } from '../components';
 import { useThemedAlert } from '../hooks';
 
@@ -82,6 +83,7 @@ export function DiaryDetailScreen() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showMarkdown, setShowMarkdown] = useState(true);
+  const [writingSettings] = useState(() => getWritingSettings());
   const viewShotRef = useRef<ViewShot>(null);
 
   const entry = getEntryById(route.params.entryId);
@@ -233,7 +235,7 @@ export function DiaryDetailScreen() {
               </View>
             </View>
             <View style={styles.contentSection}>
-              <MarkdownPreview content={entry.content} />
+              <MarkdownPreview content={entry.content} writingSettings={writingSettings} />
             </View>
             {entryImages.length > 0 && (
               <View style={styles.exportImagesSection}>
@@ -327,9 +329,9 @@ export function DiaryDetailScreen() {
 
         <View style={styles.contentSection}>
           {showMarkdown ? (
-            <MarkdownPreview content={entry.content} />
+            <MarkdownPreview content={entry.content} writingSettings={writingSettings} />
           ) : (
-            <Text style={[styles.contentText, { color: colors.textPrimary }]}>{entry.content}</Text>
+            <Text style={[styles.contentText, { color: colors.textPrimary, fontSize: writingSettings.fontSize, lineHeight: Math.round(writingSettings.fontSize * writingSettings.lineHeight), letterSpacing: writingSettings.letterSpacing }]}>{entry.content}</Text>
           )}
         </View>
 

@@ -99,6 +99,7 @@ export type RootStackParamList = {
   Main: undefined;
   Editor: { entryId?: string; date?: string; draftOnly?: boolean };
   DiaryDetail: { entryId: string };
+  WebdavSettings: undefined;
 };
 
 export type MainTabParamList = {
@@ -112,4 +113,10 @@ export interface ExportData {
   version: string;
   exportDate: number;
   entries: DiaryEntry[];
+}
+
+export interface WritingSettings {
+  fontSize: number;
+  lineHeight: number;
+  letterSpacing: number;
 }

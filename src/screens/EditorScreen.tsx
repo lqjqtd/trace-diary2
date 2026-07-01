@@ -36,7 +36,7 @@ import {
 } from '../utils/diaryIdentity';
 import { saveImage, deleteImages, getImageUri } from '../utils/imageStorage';
 import { getEntryImages } from '../utils/entryUtils';
-import { saveDraft, getDraft, clearDraft, getTagPresets } from '../api/storage';
+import { saveDraft, getDraft, clearDraft, getTagPresets, getWritingSettings } from '../api/storage';
 
 const MAX_IMAGES = 9;
 
@@ -96,6 +96,7 @@ export function EditorScreen() {
   const [images, setImages] = useState<string[]>(getEntryImages(existingEntry));
   const [tags, setTags] = useState<string[]>(existingEntry?.tags || []);
   const [location, setLocation] = useState<LocationInfo | undefined>(existingEntry?.location);
+  const [writingSettings] = useState(() => getWritingSettings());
   const [templateUsed, setTemplateUsed] = useState<string | undefined>(existingEntry?.templateUsed);
   const [showTemplateModal, setShowTemplateModal] = useState(!isEditing && !content);
   const [showTagModal, setShowTagModal] = useState(false);
@@ -127,6 +128,11 @@ export function EditorScreen() {
   const currentQuestionIndexRef = useRef(0);
   currentQuestionIndexRef.current = currentQuestionIndex;
   const contentBeforeTemplateRef = useRef('');
+  const textInputRef = useRef<TextInput>(null);
+  const [cursorPosition, setCursorPosition] = useState({ start: 0, end: 0 });
+  const [contextMenuVisible, setContextMenuVisible] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [contextMenuItems, setContextMenuItems] = useState<{ label: string; action: () => void }[]>([]);
 
   const [history, setHistory] = useState<HistoryState[]>([{ content: existingEntry?.content || '', images: getEntryImages(existingEntry) }]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -489,6 +495,177 @@ export function EditorScreen() {
     setContent(text);
     setHasChanges(true);
     saveToHistory(text, images);
+  };
+
+  const applyMarkdownFormat = (format: 'bold' | 'italic' | 'heading1' | 'heading2' | 'heading3' | 'quote' | 'list' | 'ol' | 'link' | 'strikethrough' | 'code') => {
+    const inputRef = textInputRef.current;
+    if (!inputRef) return;
+
+    inputRef.focus();
+    
+    const { start, end } = cursorPosition;
+    const selectedText = content.substring(start, end);
+    const beforeText = content.substring(0, start);
+    const afterText = content.substring(end);
+
+    let newText = '';
+    let newCursorStart = start;
+    let newCursorEnd = end;
+
+    switch (format) {
+      case 'bold':
+        if (selectedText) {
+          newText = beforeText + `**${selectedText}**` + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = end + 2;
+        } else {
+          newText = beforeText + '**粗体文字**' + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = start + 8;
+        }
+        break;
+      case 'italic':
+        if (selectedText) {
+          newText = beforeText + `*${selectedText}*` + afterText;
+          newCursorStart = start + 1;
+          newCursorEnd = end + 1;
+        } else {
+          newText = beforeText + '*斜体文字*' + afterText;
+          newCursorStart = start + 1;
+          newCursorEnd = start + 6;
+        }
+        break;
+      case 'heading1':
+        if (selectedText) {
+          const lines = selectedText.split('\n');
+          const prefixedLines = lines.map((line, i) => i === 0 ? `# ${line}` : line);
+          newText = beforeText + prefixedLines.join('\n') + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = end + 2;
+        } else {
+          newText = beforeText + '# 标题' + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = start + 4;
+        }
+        break;
+      case 'heading2':
+        if (selectedText) {
+          const lines = selectedText.split('\n');
+          const prefixedLines = lines.map((line, i) => i === 0 ? `## ${line}` : line);
+          newText = beforeText + prefixedLines.join('\n') + afterText;
+          newCursorStart = start + 3;
+          newCursorEnd = end + 3;
+        } else {
+          newText = beforeText + '## 标题' + afterText;
+          newCursorStart = start + 3;
+          newCursorEnd = start + 5;
+        }
+        break;
+      case 'heading3':
+        if (selectedText) {
+          const lines = selectedText.split('\n');
+          const prefixedLines = lines.map((line, i) => i === 0 ? `### ${line}` : line);
+          newText = beforeText + prefixedLines.join('\n') + afterText;
+          newCursorStart = start + 4;
+          newCursorEnd = end + 4;
+        } else {
+          newText = beforeText + '### 标题' + afterText;
+          newCursorStart = start + 4;
+          newCursorEnd = start + 6;
+        }
+        break;
+      case 'quote':
+        if (selectedText) {
+          const lines = selectedText.split('\n');
+          const prefixedLines = lines.map(line => `> ${line}`);
+          newText = beforeText + prefixedLines.join('\n') + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = end + 2 * lines.length;
+        } else {
+          newText = beforeText + '> 引用文字' + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = start + 6;
+        }
+        break;
+      case 'list':
+        if (selectedText) {
+          const lines = selectedText.split('\n');
+          const prefixedLines = lines.map(line => `- ${line}`);
+          newText = beforeText + prefixedLines.join('\n') + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = end + 2 * lines.length;
+        } else {
+          newText = beforeText + '- 列表项' + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = start + 5;
+        }
+        break;
+      case 'ol':
+        if (selectedText) {
+          const lines = selectedText.split('\n');
+          const prefixedLines = lines.map((line, i) => `${i + 1}. ${line}`);
+          newText = beforeText + prefixedLines.join('\n') + afterText;
+          newCursorStart = start + 3;
+          newCursorEnd = end + 3 * lines.length;
+        } else {
+          newText = beforeText + '1. 列表项' + afterText;
+          newCursorStart = start + 3;
+          newCursorEnd = start + 6;
+        }
+        break;
+      case 'link':
+        if (selectedText) {
+          newText = beforeText + `[${selectedText}](https://)` + afterText;
+          newCursorStart = end + 1;
+          newCursorEnd = end + 10;
+        } else {
+          newText = beforeText + '[链接文字](https://)' + afterText;
+          newCursorStart = start + 1;
+          newCursorEnd = start + 5;
+        }
+        break;
+      case 'strikethrough':
+        if (selectedText) {
+          newText = beforeText + `~~${selectedText}~~` + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = end + 2;
+        } else {
+          newText = beforeText + '~~删除线文字~~' + afterText;
+          newCursorStart = start + 2;
+          newCursorEnd = start + 8;
+        }
+        break;
+      case 'code':
+        if (selectedText) {
+          newText = beforeText + `\`${selectedText}\`` + afterText;
+          newCursorStart = start + 1;
+          newCursorEnd = end + 1;
+        } else {
+          newText = beforeText + '`代码`' + afterText;
+          newCursorStart = start + 1;
+          newCursorEnd = start + 3;
+        }
+        break;
+    }
+
+    handleContentChange(newText);
+    
+    setTimeout(() => {
+      if (textInputRef.current) {
+        textInputRef.current.setSelection(newCursorStart, newCursorEnd);
+        setCursorPosition({ start: newCursorStart, end: newCursorEnd });
+      }
+    }, 50);
+  };
+
+  const showContextMenu = (items: { label: string; action: () => void }[], x: number, y: number) => {
+    setContextMenuItems(items);
+    setContextMenuPosition({ x, y });
+    setContextMenuVisible(true);
+  };
+
+  const closeContextMenu = () => {
+    setContextMenuVisible(false);
   };
 
   const handleMoodSelect = (selectedMood: string) => {
@@ -1117,12 +1294,22 @@ export function EditorScreen() {
               </View>
             ) : (
               <TextInput
-                style={[styles.textInput, { color: colors.textPrimary }]}
+                ref={textInputRef}
+                style={[
+                  styles.textInput,
+                  { 
+                    color: colors.textPrimary,
+                    fontSize: writingSettings.fontSize,
+                    lineHeight: Math.round(writingSettings.fontSize * writingSettings.lineHeight),
+                    letterSpacing: writingSettings.letterSpacing,
+                  },
+                ]}
                 multiline
                 placeholder="开始写下今天的故事..."
                 placeholderTextColor={colors.textMuted}
                 value={content}
                 onChangeText={handleContentChange}
+                onSelectionChange={(e) => setCursorPosition({ start: e.nativeEvent.selection.start, end: e.nativeEvent.selection.end })}
                 textAlignVertical="top"
               />
             )}
@@ -1184,55 +1371,120 @@ export function EditorScreen() {
               },
             ]}
           >
-            <TouchableOpacity 
-              style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-              onPress={() => setShowTemplateModal(true)}
-            >
-              <Feather name="file-text" size={22} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-              onPress={pickFromLibrary}
-              disabled={isSaving}
-            >
-              <Feather name="image" size={22} color={isSaving ? colors.textMuted : colors.textSecondary} />
-              {images.length > 0 && (
-                <View style={[styles.imageBadge, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.imageBadgeText}>{images.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-              onPress={takePhoto}
-              disabled={isSaving}
-            >
-              <Feather name="camera" size={22} color={isSaving ? colors.textMuted : colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-              onPress={() => setShowSortModal(true)}
-              disabled={images.length < 2}
-            >
-              <Feather name="move" size={22} color={images.length < 2 ? colors.textMuted : colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-              onPress={() => setShowTagModal(true)}
-            >
-              <Feather name="tag" size={22} color={colors.textSecondary} />
-              {tags.length > 0 && (
-                <View style={[styles.imageBadge, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.imageBadgeText}>{tags.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-              onPress={() => setShowPromptModal(true)}
-            >
-              <Feather name="help-circle" size={22} color={colors.textSecondary} />
-            </TouchableOpacity>
+            <View style={styles.toolbarRow}>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => setShowTemplateModal(true)}
+              >
+                <Feather name="file-text" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={pickFromLibrary}
+                disabled={isSaving}
+              >
+                <Feather name="image" size={22} color={isSaving ? colors.textMuted : colors.textSecondary} />
+                {images.length > 0 && (
+                  <View style={[styles.imageBadge, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.imageBadgeText}>{images.length}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={takePhoto}
+                disabled={isSaving}
+              >
+                <Feather name="camera" size={22} color={isSaving ? colors.textMuted : colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => setShowSortModal(true)}
+                disabled={images.length < 2}
+              >
+                <Feather name="move" size={22} color={images.length < 2 ? colors.textMuted : colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => setShowTagModal(true)}
+              >
+                <Feather name="tag" size={22} color={colors.textSecondary} />
+                {tags.length > 0 && (
+                  <View style={[styles.imageBadge, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.imageBadgeText}>{tags.length}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => setShowPromptModal(true)}
+              >
+                <Feather name="help-circle" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.toolbarRow}>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => applyMarkdownFormat('bold')}
+                onLongPress={(e) => {
+                  const items = [
+                    { label: '粗体 (B)', action: () => { closeContextMenu(); applyMarkdownFormat('bold'); } },
+                    { label: '斜体 (I)', action: () => { closeContextMenu(); applyMarkdownFormat('italic'); } },
+                    { label: '删除线', action: () => { closeContextMenu(); applyMarkdownFormat('strikethrough'); } },
+                    { label: '行内代码', action: () => { closeContextMenu(); applyMarkdownFormat('code'); } },
+                  ];
+                  showContextMenu(items, e.nativeEvent.pageX, e.nativeEvent.pageY);
+                }}
+              >
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.textSecondary }}>B</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => applyMarkdownFormat('heading1')}
+                onLongPress={(e) => {
+                  const items = [
+                    { label: 'H1 标题', action: () => { closeContextMenu(); applyMarkdownFormat('heading1'); } },
+                    { label: 'H2 标题', action: () => { closeContextMenu(); applyMarkdownFormat('heading2'); } },
+                    { label: 'H3 标题', action: () => { closeContextMenu(); applyMarkdownFormat('heading3'); } },
+                  ];
+                  showContextMenu(items, e.nativeEvent.pageX, e.nativeEvent.pageY);
+                }}
+              >
+                <Feather name="type" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => applyMarkdownFormat('list')}
+                onLongPress={(e) => {
+                  const items = [
+                    { label: '无序列表', action: () => { closeContextMenu(); applyMarkdownFormat('list'); } },
+                    { label: '有序列表', action: () => { closeContextMenu(); applyMarkdownFormat('ol'); } },
+                  ];
+                  showContextMenu(items, e.nativeEvent.pageX, e.nativeEvent.pageY);
+                }}
+              >
+                <Feather name="list" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => applyMarkdownFormat('quote')}
+              >
+                <Feather name="message-circle" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => applyMarkdownFormat('link')}
+              >
+                <Feather name="link" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toolButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+                onPress={() => setShowPreview(!showPreview)}
+              >
+                <Feather name={showPreview ? 'edit-3' : 'eye'} size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -1243,6 +1495,31 @@ export function EditorScreen() {
         onClose={() => setShowTemplateModal(false)}
         onSelect={handleTemplateSelect}
       />
+
+      <Modal visible={contextMenuVisible} transparent animationType="fade" onRequestClose={closeContextMenu}>
+        <TouchableWithoutFeedback onPress={closeContextMenu}>
+          <View style={styles.modalOverlay}>
+            <View 
+              style={[styles.contextMenu, { backgroundColor: colors.cardBackground }]}
+              onLayout={(e) => {
+                const { width } = e.nativeEvent.layout;
+                const x = Math.min(contextMenuPosition.x - width / 2, Layout.window.width - width - 16);
+                const y = Math.min(contextMenuPosition.y - 40, Layout.window.height - 40);
+              }}
+            >
+              {contextMenuItems.map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.contextMenuItem, index !== contextMenuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.divider }]}
+                  onPress={item.action}
+                >
+                  <Text style={[styles.contextMenuItemText, { color: colors.textPrimary }]}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       <Modal visible={showTagModal} transparent animationType="fade" onRequestClose={() => setShowTagModal(false)}>
         <KeyboardAvoidingView
@@ -1619,12 +1896,13 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+    flexDirection: 'column',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Layout.spacing.lg,
+    paddingBottom: Layout.spacing.md,
   },
   editorContainer: {
     padding: Layout.spacing.md,
@@ -1679,11 +1957,36 @@ const styles = StyleSheet.create({
     marginTop: Layout.spacing.xs / 2,
   },
   toolbar: {
+    paddingHorizontal: Layout.spacing.md,
+    paddingVertical: Layout.spacing.xs,
+    borderTopWidth: 1,
+    gap: Layout.spacing.xs,
+  },
+  toolbarRow: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
+    gap: Layout.spacing.xs / 2,
+  },
+  contextMenu: {
+    borderRadius: Layout.borderRadius.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 8,
+    overflow: 'hidden',
+    minWidth: 140,
+    maxWidth: 200,
+  },
+  contextMenuItem: {
     paddingHorizontal: Layout.spacing.md,
     paddingVertical: Layout.spacing.sm,
-    borderTopWidth: 1,
-    gap: Layout.spacing.xs / 2,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  contextMenuItemText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
   },
   toolButton: {
     width: 40,

@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { RootStackParamList } from '../types'; // 确保引入了你的路由类型
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { RootStackParamList, WritingSettings } from '../types';
 import { 
   View, 
   StyleSheet, 
@@ -30,7 +30,7 @@ import { Layout, Typography } from '../constants';
 import { ExportData, MainTabParamList } from '../types';
 import { isValidPinFormat } from '../utils/cryptoUtils';
 import { readImageAsBase64, writeImageFromBase64 } from '../utils/imageStorage';
-import { getStorage, getImageCompression, setImageCompression, getTagPresets, setTagPresets } from '../api/storage';
+import { getStorage, getImageCompression, setImageCompression, getTagPresets, setTagPresets, getWritingSettings, saveWritingSettings } from '../api/storage';
 import { useThemedAlert } from '../hooks';
 
 Notifications.setNotificationHandler({
@@ -88,6 +88,8 @@ export function SettingsScreen() {
   const [tagModalVisible, setTagModalVisible] = useState(false);
   const [tagPresets, setTagPresetsState] = useState<string[]>(() => getTagPresets());
   const [newTagPreset, setNewTagPreset] = useState('');
+  const [writingModalVisible, setWritingModalVisible] = useState(false);
+  const [writingSettings, setWritingSettings] = useState<WritingSettings>(() => getWritingSettings());
 
   const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(() => {
     const saved = getStorage().getString(STORAGE_KEYS.REMINDER_SETTINGS);
@@ -599,6 +601,12 @@ export function SettingsScreen() {
             subtitle={tagPresets.length > 0 ? `已设置${tagPresets.length} 个标签` : '未设置常用标签'}
             onPress={() => setTagModalVisible(true)}
           />
+          <SettingsItem
+            icon="type"
+            title="文字设置"
+            subtitle={`字体 ${writingSettings.fontSize}px · 行距 ${writingSettings.lineHeight.toFixed(1)}x`}
+            onPress={() => setWritingModalVisible(true)}
+          />
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>安全</Text>
@@ -613,22 +621,14 @@ export function SettingsScreen() {
           />
         </View>
 		
-      {/* 新增：数据同步板块 */}
       <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>数据同步</Text>
       <View style={[styles.section, { backgroundColor: colors.cardBackground }]}>
-        <TouchableOpacity
-          style={styles.settingsItem}
-          onPress={() => navigation.navigate('WebdavSettings')}
-        >
-          <View style={styles.settingsItemLeft}>
-            <Feather name="cloud" size={20} color={colors.primary} />
-            <View style={styles.settingsItemTextContainer}>
-              <Text style={[styles.settingsItemTitle, { color: colors.textPrimary }]}>WebDAV 同步</Text>
-              <Text style={[styles.settingsItemSubtitle, { color: colors.textSecondary }]}>配置云同步服务器</Text>
-            </View>
-          </View>
-          <Feather name="chevron-right" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <SettingsItem
+          icon="cloud"
+          title="WebDAV 同步"
+          subtitle="配置云同步服务器"
+          onPress={() => navigation.navigate('WebdavSettings' as never)}
+        />
       </View>
 	  
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>图片</Text>
@@ -730,6 +730,95 @@ export function SettingsScreen() {
                   )}
                 </TouchableOpacity>
               ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={writingModalVisible} animationType="slide" transparent onRequestClose={() => setWritingModalVisible(false)}>
+        <View style={styles.themeModalOverlay}>
+          <View style={[styles.writingModalContent, { backgroundColor: colors.cardBackground }]}>
+            <View style={styles.themeModalHeader}>
+              <Text style={[styles.themeModalTitle, { color: colors.textPrimary }]}>文字设置</Text>
+              <TouchableOpacity onPress={() => setWritingModalVisible(false)}>
+                <Feather name="x" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.themeModalScroll}>
+              <View style={styles.writingSection}>
+                <View style={styles.writingHeader}>
+                  <Text style={[styles.writingLabel, { color: colors.textPrimary }]}>字体大小</Text>
+                  <Text style={[styles.writingValue, { color: colors.primary }]}>{writingSettings.fontSize}px</Text>
+                </View>
+                <CustomSlider
+                  minimumValue={12}
+                  maximumValue={48}
+                  value={writingSettings.fontSize}
+                  onChange={(value) => setWritingSettings({ ...writingSettings, fontSize: value })}
+                  thumbColor={colors.primary}
+                  trackColor={colors.border}
+                  minimumTrackColor={colors.primary}
+                />
+              </View>
+
+              <View style={styles.writingSection}>
+                <View style={styles.writingHeader}>
+                  <Text style={[styles.writingLabel, { color: colors.textPrimary }]}>行距</Text>
+                  <Text style={[styles.writingValue, { color: colors.primary }]}>{writingSettings.lineHeight.toFixed(1)}x</Text>
+                </View>
+                <CustomSlider
+                  minimumValue={1.2}
+                  maximumValue={2.5}
+                  value={writingSettings.lineHeight}
+                  step={0.05}
+                  onChange={(value) => setWritingSettings({ ...writingSettings, lineHeight: parseFloat(value.toFixed(1)) })}
+                  thumbColor={colors.primary}
+                  trackColor={colors.border}
+                  minimumTrackColor={colors.primary}
+                />
+              </View>
+
+              <View style={styles.writingSection}>
+                <View style={styles.writingHeader}>
+                  <Text style={[styles.writingLabel, { color: colors.textPrimary }]}>字间距</Text>
+                  <Text style={[styles.writingValue, { color: colors.primary }]}>{writingSettings.letterSpacing.toFixed(1)}px</Text>
+                </View>
+                <CustomSlider
+                  minimumValue={0}
+                  maximumValue={4}
+                  value={writingSettings.letterSpacing}
+                  step={0.1}
+                  onChange={(value) => setWritingSettings({ ...writingSettings, letterSpacing: parseFloat(value.toFixed(1)) })}
+                  thumbColor={colors.primary}
+                  trackColor={colors.border}
+                  minimumTrackColor={colors.primary}
+                />
+              </View>
+
+              <View style={styles.writingPreview}>
+                <Text style={[styles.writingPreviewTitle, { color: colors.textSecondary }]}>预览</Text>
+                <Text 
+                  style={{
+                    fontSize: writingSettings.fontSize,
+                    lineHeight: writingSettings.fontSize * writingSettings.lineHeight,
+                    letterSpacing: writingSettings.letterSpacing,
+                    color: colors.textPrimary,
+                  }}
+                >
+                  这是一段预览文字，用于展示字体大小、行距和字间距的效果。调整上方的滑块可以实时查看效果。
+                </Text>
+              </View>
+            </ScrollView>
+            <View style={styles.themeModalFooter}>
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  saveWritingSettings(writingSettings);
+                  setWritingModalVisible(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>保存设置</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -841,12 +930,12 @@ export function SettingsScreen() {
                 <Feather name="feather" size={40} color={colors.primary} />
               </View>
               <Text style={[styles.aboutTitle, { color: colors.textPrimary }]}>素履</Text>
-              <Text style={[styles.aboutSubtitle, { color: colors.textSecondary }]}>Trace</Text>
+              <Text style={[styles.aboutSubtitle, { color: colors.textSecondary }]}>Trace_Suo</Text>
               <Text style={[styles.aboutSlogan, { color: colors.textSecondary }]}>记录人生轨迹，素雅且纯粹</Text>
             </View>
             
             <Text style={[styles.aboutDescription, { color: colors.textPrimary }]}>
-              一个以绝对隐私为基石的日记应用。{'\n'}所有数据均存储在本地，不会上传至任何服务器。
+              自己使用的日记本，以绝对隐私为基石
             </Text>
 
             <View style={[styles.aboutDivider, { backgroundColor: colors.border }]} />
@@ -855,14 +944,14 @@ export function SettingsScreen() {
 
             <TouchableOpacity
               style={[styles.aboutContactItem, { backgroundColor: colors.background }]}
-              onPress={() => Linking.openURL('https://github.com/bilili-syy/trace-diary')}
+              onPress={() => Linking.openURL('https://github.com/lqjqtd/trace-diary2')}
             >
               <View style={[styles.aboutContactIcon, { backgroundColor: '#24292e' + '20' }]}>
                 <Feather name="github" size={18} color="#24292e" />
               </View>
               <View style={styles.aboutContactInfo}>
                 <Text style={[styles.aboutContactLabel, { color: colors.textSecondary }]}>GitHub</Text>
-                <Text style={[styles.aboutContactValue, { color: colors.textPrimary }]}>bilili-syy/trace-diary</Text>
+                <Text style={[styles.aboutContactValue, { color: colors.textPrimary }]}>lqjqtd/trace-diary2</Text>
               </View>
               <Feather name="chevron-right" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
@@ -887,6 +976,74 @@ export function SettingsScreen() {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+interface CustomSliderProps {
+  minimumValue: number;
+  maximumValue: number;
+  value: number;
+  step?: number;
+  onChange: (value: number) => void;
+  thumbColor: string;
+  trackColor: string;
+  minimumTrackColor: string;
+}
+
+function CustomSlider({ minimumValue, maximumValue, value, step = 1, onChange, thumbColor, trackColor, minimumTrackColor }: CustomSliderProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const sliderRef = useRef<View>(null);
+
+  const calculateValue = (clientX: number) => {
+    if (!sliderRef.current) return value;
+    
+    let w = 280, posX = 0;
+    if (sliderRef.current.measureInWindow) {
+      sliderRef.current.measureInWindow((px, py, pw) => { w = pw; posX = px; });
+    }
+    
+    const touchX = clientX - posX;
+    const percentage = Math.max(0, Math.min(1, touchX / w));
+    const rawValue = minimumValue + (maximumValue - minimumValue) * percentage;
+    return Math.round(rawValue / step) * step;
+  };
+
+  const handleTouchStart = (e: { nativeEvent: { touches: Array<{ pageX: number }> } }) => {
+    setIsDragging(true);
+    const newValue = calculateValue(e.nativeEvent.touches[0].pageX);
+    onChange(newValue);
+  };
+
+  const handleTouchMove = (e: { nativeEvent: { touches: Array<{ pageX: number }> } }) => {
+    if (!isDragging) return;
+    const newValue = calculateValue(e.nativeEvent.touches[0].pageX);
+    onChange(newValue);
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  const percentage = (value - minimumValue) / (maximumValue - minimumValue);
+
+  return (
+    <View 
+      ref={sliderRef} 
+      style={styles.writingSliderContainer}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+    >
+      <View style={[styles.writingSliderTrack, { backgroundColor: trackColor }]}>
+        <View 
+          style={[styles.writingSliderProgress, { backgroundColor: minimumTrackColor, width: `${percentage * 100}%` }]} 
+        />
+      </View>
+      <View 
+        style={[styles.writingSliderThumb, { backgroundColor: thumbColor, left: `${percentage * 100}%`, marginLeft: -10 }]}
+      />
+    </View>
   );
 }
 
@@ -942,6 +1099,13 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: Layout.spacing.lg,
     paddingBottom: 40,
+  },
+  writingModalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: Layout.spacing.lg,
+    paddingBottom: 40,
+    height: '75%',
   },
   themeModalHeader: {
     flexDirection: 'row',
@@ -1126,6 +1290,83 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semibold,
+  },
+  writingSection: {
+    paddingVertical: Layout.spacing.sm,
+    paddingHorizontal: Layout.spacing.lg,
+  },
+  writingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Layout.spacing.xs,
+  },
+  writingLabel: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  writingValue: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  writingSlider: {
+    width: '100%',
+    height: 40,
+    marginTop: Layout.spacing.sm,
+  },
+  writingSliderLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Layout.spacing.xs,
+  },
+  writingSliderLabel: {
+    fontSize: Typography.fontSize.xs,
+  },
+  writingPreview: {
+    padding: Layout.spacing.lg,
+    marginTop: Layout.spacing.md,
+    marginHorizontal: Layout.spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    backgroundColor: '#f5f5f5',
+  },
+  writingPreviewTitle: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold,
+    marginBottom: Layout.spacing.sm,
+  },
+  themeModalScroll: {
+    flex: 1,
+    paddingVertical: Layout.spacing.md,
+  },
+  themeModalFooter: {
+    padding: Layout.spacing.md,
+    borderTopWidth: 1,
+  },
+  writingSliderContainer: {
+    width: '100%',
+    height: 32,
+    position: 'relative',
+    alignItems: 'center',
+  },
+  writingSliderTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    position: 'absolute',
+  },
+  writingSliderProgress: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  writingSliderThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    position: 'absolute',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
 });
 

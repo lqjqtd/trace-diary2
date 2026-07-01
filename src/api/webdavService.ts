@@ -1,5 +1,5 @@
 // src/api/webdavService.ts
-import { createClient, Client } from 'webdav';
+import { createClient } from 'webdav';
 import * as FileSystem from 'expo-file-system/legacy';
 import JSZip from 'jszip';
 import { format } from 'date-fns';
@@ -46,7 +46,7 @@ export type DownloadResult =
   | { success: false; errorType: 'unknown' };
 
 class WebDavService {
-  private client: Client | null = null;
+  private client: any = null;
   private lastSyncTime: number = 0;
   private remoteURL: string = '';
   private username: string = '';
@@ -101,10 +101,9 @@ class WebDavService {
     }
   }
 
-  // 生成带时间戳的备份文件名
   private generateBackupFileName(): string {
     const timestamp = format(new Date(), 'yyyy-MM-dd_HH-mm-ss');
-    return `sulv_backup_${timestamp}.zip`;
+    return `Diary_${timestamp}.zip`;
   }
 
   // 3. 将本地数据打包并上传（带时间戳的备份）
@@ -135,7 +134,7 @@ class WebDavService {
     const zipArrayBuffer = await zip.generateAsync({ type: 'arraybuffer' });
     
     // 写入临时文件
-    const fileName = useTimestamp ? this.generateBackupFileName() : 'sulv_backup.zip';
+    const fileName = useTimestamp ? this.generateBackupFileName() : 'Diary.zip';
     const tempZipPath = `${FileSystem.cacheDirectory}${fileName}`;
     await FileSystem.writeAsStringAsync(tempZipPath, 
       arrayBufferToBase64(zipArrayBuffer), 
@@ -155,7 +154,38 @@ class WebDavService {
     return fileName;
   }
 
-  // 获取远程备份列表
+  private parseModifiedTime(item: any, fileName: string): number {
+    let timestamp = 0;
+    
+    if (item.lastModified) {
+      const date = new Date(item.lastModified);
+      if (!isNaN(date.getTime())) {
+        timestamp = date.getTime();
+      }
+    }
+    
+    if (timestamp <= 0 && item.lastModifiedDate) {
+      const date = new Date(item.lastModifiedDate);
+      if (!isNaN(date.getTime())) {
+        timestamp = date.getTime();
+      }
+    }
+    
+    if (timestamp <= 0) {
+      const timestampRegex = /(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/;
+      const match = fileName.match(timestampRegex);
+      if (match) {
+        const dateStr = `${match[1]}T${match[2]}:${match[3]}:${match[4]}`;
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          timestamp = date.getTime();
+        }
+      }
+    }
+    
+    return timestamp;
+  }
+
   async getBackupList(): Promise<BackupInfo[]> {
     if (!this.client) throw new Error('WebDAV 客户端未初始化');
     
@@ -165,10 +195,14 @@ class WebDavService {
       
       return contents
         .filter((item: any) => item.type === 'file' && item.filename.endsWith('.zip'))
-        .map((item: any) => ({
-          fileName: item.basename,
-          modifiedTime: new Date(item.lastModified).getTime(),
-        }))
+        .map((item: any) => {
+          const fileName = item.basename || item.filename || '';
+          const modifiedTime = this.parseModifiedTime(item, fileName);
+          return {
+            fileName,
+            modifiedTime,
+          };
+        })
         .sort((a: BackupInfo, b: BackupInfo) => b.modifiedTime - a.modifiedTime);
     } catch (error) {
       console.error('获取备份列表失败:', error);
@@ -185,7 +219,7 @@ class WebDavService {
       return { success: false, errorType: 'auth_failed' };
     }
 
-    const fileName = remoteFileName || 'sulv_backup.zip';
+    const fileName = remoteFileName || 'Diary.zip';
     const remoteFilePath = `/${REMOTE_FOLDER_NAME}/${fileName}`;
     
     // 检查远程文件是否存在并获取内容

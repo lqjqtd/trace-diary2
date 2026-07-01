@@ -528,11 +528,11 @@ const styles = StyleSheet.create({
   },
   button: {
     borderRadius: 8,
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
-    height: 50,
   },
   testButton: {
     backgroundColor: '#4A90E2',

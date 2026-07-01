@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Colors, Layout, Typography } from '../constants';
@@ -252,13 +253,13 @@ export function LocationModal({
     const hasCustom = !!findCustomLocation(item.latitude, item.longitude);
     return (
       <TouchableOpacity
-        style={[styles.placeItem, { backgroundColor: colors.inputBackground }]}
+        style={[styles.placeItem, { backgroundColor: colors.cardBackground }]}
         onPress={() => handleSelect(item)}
         onLongPress={() => handleRename(item)}
         activeOpacity={0.7}
       >
-        <Feather name="map-pin" size={16} color={colors.textMuted} />
-        <Text style={[styles.placeText, { color: colors.textPrimary }]} numberOfLines={1}>
+        <Feather name="map-pin" size={16} color={colors.primary} />
+        <Text style={[styles.placeText, { color: colors.textPrimary }]} numberOfLines={2}>
           {item.name}
         </Text>
         {hasCustom && (
@@ -287,8 +288,9 @@ export function LocationModal({
             </TouchableOpacity>
           </View>
 
-          {/* 当前定位 */}
-          <View style={styles.section}>
+          <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            {/* 当前定位 */}
+            <View style={styles.section}>
             {loading ? (
               <View style={[styles.currentLocation, { backgroundColor: colors.inputBackground }]}>
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -357,14 +359,11 @@ export function LocationModal({
               {loadingNearby ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <FlatList
-                  data={nearbyPlaces}
-                  renderItem={renderNearbyItem}
-                  keyExtractor={(item, index) => `${item.name}-${index}`}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  ItemSeparatorComponent={() => <View style={styles.separator} />}
-                />
+                <View style={styles.nearbyList}>
+                  {nearbyPlaces.map((item, index) => (
+                    renderNearbyItem({ item })
+                  ))}
+                </View>
               )}
             </View>
           )}
@@ -434,16 +433,17 @@ export function LocationModal({
 
           {/* 清除位置按钮 */}
           {initialLocation && (
-            <TouchableOpacity
-              style={[styles.clearButton, { backgroundColor: colors.inputBackground }]}
-              onPress={handleClear}
-            >
-              <Feather name="trash-2" size={18} color={colors.error || '#e74c3c'} />
-              <Text style={[styles.clearButtonText, { color: colors.error || '#e74c3c' }]}>
-                清除位置
-              </Text>
-            </TouchableOpacity>
-          )}
+              <TouchableOpacity
+                style={[styles.clearButton, { backgroundColor: colors.inputBackground }]}
+                onPress={handleClear}
+              >
+                <Feather name="trash-2" size={18} color={colors.error || '#e74c3c'} />
+                <Text style={[styles.clearButtonText, { color: colors.error || '#e74c3c' }]}>
+                  清除位置
+                </Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
 
@@ -500,6 +500,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Layout.borderRadius.xl,
     paddingBottom: Layout.spacing.xl,
     maxHeight: '80%',
+    flex: 1,
+  },
+  scrollContent: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -568,8 +572,10 @@ const styles = StyleSheet.create({
     paddingVertical: Layout.spacing.sm,
     paddingHorizontal: Layout.spacing.md,
     borderRadius: Layout.borderRadius.md,
+    gap: Layout.spacing.sm,
+  },
+  nearbyList: {
     gap: Layout.spacing.xs,
-    maxWidth: 200,
   },
   placeText: {
     fontSize: Typography.fontSize.sm,

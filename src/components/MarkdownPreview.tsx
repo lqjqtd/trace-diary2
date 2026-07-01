@@ -1,16 +1,30 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Linking } from 'react-native';
 import { useTheme } from '../context/ThemeProvider';
 import { Layout, Typography } from '../constants';
 import { getImageUri } from '../utils/imageStorage';
+import { WritingSettings } from '../types';
 
 interface MarkdownPreviewProps {
   content: string;
   images?: string[];
+  writingSettings?: WritingSettings;
 }
 
-export function MarkdownPreview({ content, images }: MarkdownPreviewProps) {
+const DEFAULT_SETTINGS: WritingSettings = {
+  fontSize: 16,
+  lineHeight: 1.75,
+  letterSpacing: 0,
+};
+
+export function MarkdownPreview({ content, images, writingSettings = DEFAULT_SETTINGS }: MarkdownPreviewProps) {
   const { colors } = useTheme();
+
+  const baseFontSize = writingSettings.fontSize;
+  const lineHeightFactor = writingSettings.lineHeight;
+  const letterSpacing = writingSettings.letterSpacing;
+
+  const getLineHeight = (fontSize: number) => Math.round(fontSize * lineHeightFactor);
 
   const parseMarkdown = (text: string): React.ReactNode[] => {
     const lines = text.split('\n');
@@ -27,28 +41,28 @@ export function MarkdownPreview({ content, images }: MarkdownPreviewProps) {
 
       if (trimmed.startsWith('### ')) {
         elements.push(
-          <Text key={index} style={[styles.h3, { color: colors.textPrimary }]}>
+          <Text key={index} style={[styles.h3, { color: colors.textPrimary, fontSize: baseFontSize * 1.2, lineHeight: getLineHeight(baseFontSize * 1.2), letterSpacing }]}>
             {trimmed.slice(4)}
           </Text>
         );
       } else if (trimmed.startsWith('## ')) {
         elements.push(
-          <Text key={index} style={[styles.h2, { color: colors.textPrimary }]}>
+          <Text key={index} style={[styles.h2, { color: colors.textPrimary, fontSize: baseFontSize * 1.375, lineHeight: getLineHeight(baseFontSize * 1.375), letterSpacing }]}>
             {trimmed.slice(3)}
           </Text>
         );
       } else if (trimmed.startsWith('# ')) {
         elements.push(
-          <Text key={index} style={[styles.h1, { color: colors.textPrimary }]}>
+          <Text key={index} style={[styles.h1, { color: colors.textPrimary, fontSize: baseFontSize * 1.5, lineHeight: getLineHeight(baseFontSize * 1.5), letterSpacing }]}>
             {trimmed.slice(2)}
           </Text>
         );
       } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
         elements.push(
           <View key={index} style={styles.listItem}>
-            <Text style={[styles.listBullet, { color: colors.primary }]}>•</Text>
-            <Text style={[styles.listText, { color: colors.textPrimary }]}>
-              {renderInlineStyles(trimmed.slice(2), colors)}
+            <Text style={[styles.listBullet, { color: colors.primary, fontSize: baseFontSize }]}>•</Text>
+            <Text style={[styles.listText, { color: colors.textPrimary, fontSize: baseFontSize, lineHeight: getLineHeight(baseFontSize), letterSpacing }]}>
+              {renderInlineStyles(trimmed.slice(2), colors, baseFontSize, lineHeightFactor, letterSpacing)}
             </Text>
           </View>
         );
@@ -57,17 +71,17 @@ export function MarkdownPreview({ content, images }: MarkdownPreviewProps) {
         const textContent = trimmed.replace(/^\d+\.\s/, '');
         elements.push(
           <View key={index} style={styles.listItem}>
-            <Text style={[styles.listNumber, { color: colors.primary }]}>{listIndex}.</Text>
-            <Text style={[styles.listText, { color: colors.textPrimary }]}>
-              {renderInlineStyles(textContent, colors)}
+            <Text style={[styles.listNumber, { color: colors.primary, fontSize: baseFontSize }]}>{listIndex}.</Text>
+            <Text style={[styles.listText, { color: colors.textPrimary, fontSize: baseFontSize, lineHeight: getLineHeight(baseFontSize), letterSpacing }]}>
+              {renderInlineStyles(textContent, colors, baseFontSize, lineHeightFactor, letterSpacing)}
             </Text>
           </View>
         );
       } else if (trimmed.startsWith('> ')) {
         elements.push(
           <View key={index} style={[styles.blockquote, { borderLeftColor: colors.primary, backgroundColor: colors.primary + '10' }]}>
-            <Text style={[styles.blockquoteText, { color: colors.textSecondary }]}>
-              {renderInlineStyles(trimmed.slice(2), colors)}
+            <Text style={[styles.blockquoteText, { color: colors.textSecondary, fontSize: baseFontSize, lineHeight: getLineHeight(baseFontSize), letterSpacing }]}>
+              {renderInlineStyles(trimmed.slice(2), colors, baseFontSize, lineHeightFactor, letterSpacing)}
             </Text>
           </View>
         );
@@ -76,8 +90,8 @@ export function MarkdownPreview({ content, images }: MarkdownPreviewProps) {
       } else {
         listIndex = 0;
         elements.push(
-          <Text key={index} style={[styles.paragraph, { color: colors.textPrimary }]}>
-            {renderInlineStyles(trimmed, colors)}
+          <Text key={index} style={[styles.paragraph, { color: colors.textPrimary, fontSize: baseFontSize, lineHeight: getLineHeight(baseFontSize), letterSpacing }]}>
+            {renderInlineStyles(trimmed, colors, baseFontSize, lineHeightFactor, letterSpacing)}
           </Text>
         );
       }
@@ -86,12 +100,13 @@ export function MarkdownPreview({ content, images }: MarkdownPreviewProps) {
     return elements;
   };
 
-  const renderInlineStyles = (text: string, colors: any): React.ReactNode => {
+  const renderInlineStyles = (text: string, colors: any, fontSize: number, lineHeightFactor: number, letterSpacing: number): React.ReactNode => {
     const parts: React.ReactNode[] = [];
     let remaining = text;
     let keyIndex = 0;
 
     const patterns = [
+      { regex: /\[([^\]]+)\]\(([^)]+)\)/g, type: 'link' },
       { regex: /\*\*\*(.+?)\*\*\*/g, style: [styles.bold, styles.italic] },
       { regex: /\*\*(.+?)\*\*/g, style: [styles.bold] },
       { regex: /\*(.+?)\*/g, style: [styles.italic] },
@@ -104,17 +119,20 @@ export function MarkdownPreview({ content, images }: MarkdownPreviewProps) {
     let hasMatch = true;
     while (hasMatch && remaining.length > 0) {
       hasMatch = false;
-      let earliestMatch: { index: number; length: number; content: string; style: any[] } | null = null;
+      let earliestMatch: { index: number; length: number; content: string; url?: string; style: any[] } | null = null;
+      let isLink = false;
 
       for (const pattern of patterns) {
         pattern.regex.lastIndex = 0;
         const match = pattern.regex.exec(remaining);
         if (match && (!earliestMatch || match.index < earliestMatch.index)) {
+          isLink = pattern.type === 'link';
           earliestMatch = {
             index: match.index,
             length: match[0].length,
-            content: match[1],
-            style: pattern.style,
+            content: isLink ? match[1] : match[1],
+            url: isLink ? match[2] : undefined,
+            style: pattern.style || [],
           };
         }
       }
@@ -123,20 +141,36 @@ export function MarkdownPreview({ content, images }: MarkdownPreviewProps) {
         hasMatch = true;
         if (earliestMatch.index > 0) {
           parts.push(
-            <Text key={keyIndex++}>{remaining.slice(0, earliestMatch.index)}</Text>
+            <Text key={keyIndex++} style={{ fontSize, lineHeight: Math.round(fontSize * lineHeightFactor), letterSpacing }}>
+              {remaining.slice(0, earliestMatch.index)}
+            </Text>
           );
         }
-        parts.push(
-          <Text key={keyIndex++} style={earliestMatch.style}>
-            {earliestMatch.content}
-          </Text>
-        );
+        if (isLink && earliestMatch.url) {
+          parts.push(
+            <TouchableOpacity
+              key={keyIndex++}
+              onPress={() => earliestMatch.url && Linking.openURL(earliestMatch.url)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.link, { fontSize, lineHeight: Math.round(fontSize * lineHeightFactor), letterSpacing, color: colors.primary }]}>
+                {earliestMatch.content}
+              </Text>
+            </TouchableOpacity>
+          );
+        } else {
+          parts.push(
+            <Text key={keyIndex++} style={[...earliestMatch.style, { fontSize, lineHeight: Math.round(fontSize * lineHeightFactor), letterSpacing }]}>
+              {earliestMatch.content}
+            </Text>
+          );
+        }
         remaining = remaining.slice(earliestMatch.index + earliestMatch.length);
       }
     }
 
     if (remaining.length > 0) {
-      parts.push(<Text key={keyIndex++}>{remaining}</Text>);
+      parts.push(<Text key={keyIndex++} style={{ fontSize, lineHeight: Math.round(fontSize * lineHeightFactor), letterSpacing }}>{remaining}</Text>);
     }
 
     return parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : parts;
@@ -166,39 +200,30 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   spacer: { height: Layout.spacing.xs },
   h1: {
-    fontSize: Typography.fontSize['2xl'],
     fontWeight: Typography.fontWeight.bold,
     marginVertical: Layout.spacing.sm,
-    lineHeight: Math.round(Typography.fontSize['2xl'] * Typography.lineHeight.tight),
   },
   h2: {
-    fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.semibold,
     marginVertical: Layout.spacing.xs + 2,
-    lineHeight: Math.round(Typography.fontSize.xl * Typography.lineHeight.tight),
   },
   h3: {
-    fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.semibold,
     marginVertical: Layout.spacing.xs,
-    lineHeight: Math.round(Typography.fontSize.lg * Typography.lineHeight.normal),
   },
   paragraph: {
-    fontSize: Typography.fontSize.base,
-    lineHeight: Math.round(Typography.fontSize.base * Typography.lineHeight.relaxed),
     marginVertical: Layout.spacing.xs / 2,
   },
   bold: { fontWeight: Typography.fontWeight.bold },
   italic: { fontStyle: 'italic' },
   strikethrough: { textDecorationLine: 'line-through' },
   code: { fontFamily: 'monospace', paddingHorizontal: Layout.spacing.xs / 2, borderRadius: 4 },
+  link: { textDecorationLine: 'underline', textDecorationStyle: 'solid' },
   listItem: { flexDirection: 'row', marginVertical: Layout.spacing.xs / 2, paddingLeft: Layout.spacing.xs },
-  listBullet: { width: 20, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold },
-  listNumber: { width: 24, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.medium },
+  listBullet: { width: 20, fontWeight: Typography.fontWeight.semibold },
+  listNumber: { width: 24, fontWeight: Typography.fontWeight.medium },
   listText: {
     flex: 1,
-    fontSize: Typography.fontSize.base,
-    lineHeight: Math.round(Typography.fontSize.base * Typography.lineHeight.normal),
   },
   blockquote: { 
     borderLeftWidth: 4, 
@@ -208,8 +233,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   blockquoteText: {
-    fontSize: Typography.fontSize.base,
-    lineHeight: Math.round(Typography.fontSize.base * Typography.lineHeight.normal),
     fontStyle: 'italic',
   },
   hr: { height: 1, marginVertical: Layout.spacing.md },
