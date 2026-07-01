@@ -10,6 +10,7 @@ import {
   ScrollView,
   Modal,
   Platform,
+  SectionList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
@@ -48,6 +49,7 @@ export function HomeScreen() {
   const [filters, setFilters] = useState<FilterState>({ mood: null, weather: null, tag: null });
   const [showOnboarding, setShowOnboarding] = useState(() => !getOnboardingDone());
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list');
 
   const thisDayEntries = useMemo(() => {
     return getThisDayLastYearEntries();
@@ -89,6 +91,25 @@ export function HomeScreen() {
     
     return entries;
   }, [state.entries, debouncedSearch, filters]);
+
+  const timelineSections = useMemo(() => {
+    const sections: { title: string; data: DiaryEntry[] }[] = [];
+    let currentMonth = '';
+
+    filteredEntries.forEach(entry => {
+      const date = new Date(entry.date);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const monthStr = `${year}年${month}月`;
+      if (monthStr !== currentMonth) {
+        currentMonth = monthStr;
+        sections.push({ title: monthStr, data: [] });
+      }
+      sections[sections.length - 1].data.push(entry);
+    });
+
+    return sections;
+  }, [filteredEntries]);
 
   const clearFilters = () => {
     setFilters({ mood: null, weather: null, tag: null });
@@ -308,9 +329,34 @@ export function HomeScreen() {
       </View>
       {shouldShowFilters && renderFilters()}
 
+      {state.entries.length > 0 && (
+        <View style={styles.viewModeToggle}>
+          <TouchableOpacity
+            style={[
+              styles.viewModeButton,
+              viewMode === 'list' && [styles.viewModeButtonActive, { backgroundColor: colors.primary }],
+              { borderColor: colors.border }
+            ]}
+            onPress={() => setViewMode('list')}
+          >
+            <Feather name="list" size={18} color={viewMode === 'list' ? '#FFF' : colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.viewModeButton,
+              viewMode === 'timeline' && [styles.viewModeButtonActive, { backgroundColor: colors.primary }],
+              { borderColor: colors.border }
+            ]}
+            onPress={() => setViewMode('timeline')}
+          >
+            <Feather name="align-left" size={18} color={viewMode === 'timeline' ? '#FFF' : colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {state.entries.length === 0 ? (
         renderEmptyState()
-      ) : (
+      ) : viewMode === 'list' ? (
         <FlatList
           data={filteredEntries}
           renderItem={renderItem}
@@ -328,6 +374,45 @@ export function HomeScreen() {
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={5}
+        />
+      ) : (
+        <SectionList
+          sections={timelineSections}
+          renderItem={({ item, section, index }) => (
+            <View style={styles.timelineItemContainer}>
+              <View style={styles.timelineLineContainer}>
+                <View style={[styles.timelineDot, { backgroundColor: colors.primary, borderColor: colors.background }]} />
+                {index < section.data.length - 1 && (
+                  <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
+                )}
+              </View>
+              <View style={styles.timelineCardWrapper}>
+                <DiaryCard
+                  entry={item}
+                  onPress={() => handleCardPress(item)}
+                  onLongPress={() => handleCardLongPress(item)}
+                />
+              </View>
+            </View>
+          )}
+          renderSectionHeader={({ section }) => (
+            <View style={[styles.timelineSectionHeader, { backgroundColor: colors.background }]}>
+              <View style={[styles.timelineSectionDot, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.timelineSectionTitle, { color: colors.textPrimary }]}>{section.title}</Text>
+            </View>
+          )}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={!debouncedSearch && !hasActiveFilters ? renderThisDaySection : null}
+          ListEmptyComponent={
+            debouncedSearch || hasActiveFilters ? (
+              <View style={styles.noResultContainer}>
+                <Text style={[styles.noResultText, { color: colors.textMuted }]}>未找到相关日记</Text>
+              </View>
+            ) : null
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
         />
       )}
 
@@ -657,6 +742,67 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semibold,
+  },
+  viewModeToggle: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: Layout.spacing.md,
+    paddingBottom: Layout.spacing.sm,
+    gap: 8,
+  },
+  viewModeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  viewModeButtonActive: {
+    borderWidth: 0,
+  },
+  timelineSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Layout.spacing.md,
+    paddingTop: Layout.spacing.md,
+    paddingBottom: Layout.spacing.sm,
+  },
+  timelineSectionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: Layout.spacing.sm,
+  },
+  timelineSectionTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  timelineItemContainer: {
+    flexDirection: 'row',
+    paddingLeft: Layout.spacing.md,
+  },
+  timelineLineContainer: {
+    width: 24,
+    alignItems: 'center',
+    paddingTop: 24,
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 3,
+    zIndex: 1,
+  },
+  timelineLine: {
+    position: 'absolute',
+    top: 36,
+    bottom: 0,
+    width: 2,
+  },
+  timelineCardWrapper: {
+    flex: 1,
+    paddingRight: Layout.spacing.md,
   },
 });
 

@@ -127,3 +127,92 @@ onChange={(value) => {
 1. **编辑器滚动体验**：当前 TextInput 内部滚动与外层 ScrollView 的协调需要进一步优化
 2. **光标自动滚动**：输入长文本时光标需要自动滚动到可视区域
 3. **写作模式下的工具栏隐藏**：写作模式应该隐藏所有工具栏，仅保留必要功能
+
+---
+
+# 工作日志 - 2026年7月1日（续）
+
+## 七、首页时间轴功能
+
+### 7.1 新增功能
+- **视图切换**：支持列表视图和时间轴视图两种模式
+- **时间轴分组**：按月份分组显示日记（如"2026年7月"）
+- **时间轴样式**：左侧竖线 + 圆点连接，右侧日记卡片
+
+### 7.2 交互设计
+- **视图切换按钮**：搜索栏下方右侧，两个圆形按钮
+  - 列表图标 = 普通列表视图（默认）
+  - 对齐图标 = 时间轴视图
+- **分组标题**：每个月份显示一个分组标题，左侧有圆点标识
+- **时间线连接**：同月份的日记通过竖线连接
+
+### 7.3 文件修改
+- `src/screens/HomeScreen.tsx`
+  - 新增 `viewMode` 状态（`'list' | 'timeline'`）
+  - 新增 `timelineSections` 分组逻辑（按月份分组）
+  - 新增视图切换按钮 UI（第 332-355 行）
+  - 修改列表渲染为条件渲染：`FlatList` / `SectionList`
+  - 新增时间轴相关样式（第 746-806 行）
+
+### 7.4 技术要点
+```typescript
+// 时间轴分组逻辑
+const timelineSections = useMemo(() => {
+  const sections: { title: string; data: DiaryEntry[] }[] = [];
+  let currentMonth = '';
+  
+  filteredEntries.forEach(entry => {
+    const date = new Date(entry.date);
+    const monthStr = `${date.getFullYear()}年${date.getMonth() + 1}月`;
+    if (monthStr !== currentMonth) {
+      currentMonth = monthStr;
+      sections.push({ title: monthStr, data: [] });
+    }
+    sections[sections.length - 1].data.push(entry);
+  });
+  
+  return sections;
+}, [filteredEntries]);
+```
+
+---
+
+## 八、开发环境维护
+
+### 8.1 Expo CLI 版本问题修复
+- **问题**：全局安装的旧版 `expo-cli` 不支持 Node.js v17+（当前使用 v24.17.0）
+- **解决方案**：卸载全局 `expo-cli`，使用项目本地安装的新版 Expo CLI
+- **操作**：`npm uninstall -g expo-cli`
+- **结果**：npx 自动使用本地 `node_modules/.bin/expo`，不再显示 Node +17 警告
+
+### 8.2 版本检查
+- **Expo SDK**: 54.0.33 ✅
+- **React**: 19.1.0 ✅
+- **React Native**: 0.81.5 ✅
+- **TypeScript**: 5.9.2 ✅
+- **React Navigation**: v7.3.4 ✅
+
+### 8.3 依赖安装问题
+- 使用 `npm install expo-location --legacy-peer-deps` 解决依赖冲突
+- 使用 `fetch` 替换 `axios`，避免额外依赖
+
+---
+
+## 九、文档更新
+
+### 9.1 AGENTS.md 更新
+- 更新"未实现/待完善"部分，添加 23 项待办任务
+- 分类包括：日记分类系统、导入/导出扩展、首页时间轴、字体样式调整、编辑器工具栏、位置/天气功能优化
+
+### 9.2 同步 GitHub
+- 提交更新到 GitHub（commit: `f5399c6`）
+
+---
+
+## 十、待完成事项
+
+1. **日记分类系统**：自定义分类、编辑选择、列表移动、首页筛选
+2. **导出格式扩展**：Markdown、TXT、PDF 格式
+3. **导入功能扩展**：DayOne、一本日记等格式
+4. **字体样式调整**：字体大小、字间距、行间距（已实现设置项）
+5. **编辑器工具栏**：Markdown 可视化工具栏（已实现）
